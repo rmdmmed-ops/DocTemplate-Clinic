@@ -14,6 +14,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body { margin: 0; min-width: 320px; background: var(--soft); color: var(--ink); }
 button, input, textarea { font: inherit; }
 button { cursor: pointer; }
