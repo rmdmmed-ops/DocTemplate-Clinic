@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0b6e69" />
+    <meta name="description" content="Modelos clínicos editáveis para uso ortopédico." />
+    <title>DocTemplate Clínico</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar">
+        <div class="brand">
+          <div class="brand-mark">DT</div>
+          <div><strong>DocTemplate</strong><span>Clínico</span></div>
+        </div>
+        <nav id="sectionNav" aria-label="Módulos clínicos"></nav>
+        <div class="sidebar-note">
+          <strong>Privacidade</strong>
+          <span>Evite salvar dados identificáveis de pacientes.</span>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <button class="icon-button menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
+          <div class="search-wrap">
+            <span aria-hidden="true">⌕</span>
+            <input id="globalSearch" type="search" placeholder="Buscar modelos e conteúdos…" autocomplete="off" />
+            <kbd>Ctrl K</kbd>
+          </div>
+          <span class="storage-status" id="storageStatus">Disponível offline após carregar</span>
+        </header>
+
+        <section class="workspace">
+          <div class="pane template-pane">
+            <div class="pane-header">
+              <div>
+                <span class="eyebrow">Módulo</span>
+                <h1 id="sectionTitle">Pronto-Socorro</h1>
+              </div>
+              <button class="button secondary" id="addTemplateButton">+ Novo</button>
+            </div>
+            <div class="result-summary" id="resultSummary"></div>
+            <div class="template-list" id="templateList"></div>
+          </div>
+
+          <div class="pane editor-pane" id="editorPane">
+            <div class="empty-state" id="emptyState">
+              <div class="empty-icon">✚</div>
+              <h2>Selecione um modelo</h2>
+              <p>Use a busca ou escolha um item na lista para editar e copiar.</p>
+            </div>
+            <div class="editor" id="editor" hidden>
+              <div class="editor-header">
+                <div class="title-edit">
+                  <span class="eyebrow">Modelo selecionado</span>
+                  <input id="templateTitle" aria-label="Título do modelo" />
+                </div>
+                <button class="star-button" id="favoriteButton" aria-label="Favoritar modelo" title="Favoritar">☆</button>
+              </div>
+              <div class="editor-actions">
+                <button class="button primary" id="copyAllButton">Copiar tudo</button>
+                <button class="button secondary" id="addBlockButton">+ Bloco</button>
+                <button class="button secondary" id="resetButton">Restaurar original</button>
+                <button class="button danger" id="deleteTemplateButton">Excluir</button>
+              </div>
+              <div id="blockList" class="block-list"></div>
+              <div class="save-bar">
+                <span id="saveHint">As alterações ficam neste navegador.</span>
+                <button class="button primary" id="saveButton">Salvar alterações</button>
+              </div>
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <div class="backdrop" id="backdrop"></div>
+    <script src="data.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
