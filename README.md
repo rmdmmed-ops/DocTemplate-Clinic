@@ -1,13 +1,17 @@
-# DocTemplate Clínico
+# DOC TEMPLATE ORTOPEDIA – 3.0 (VERSÃO ATUAL)
 
-Aplicação estática de modelos clínicos para GitHub Pages, com busca global, edição,
-cópia e persistência local no navegador.
+Versão do **DocTemplate Clínico V47**, publicada originalmente no site da OpenAI em
+19/08/2026 e adaptada para funcionar no GitHub Pages.
 
-## Publicação
+Inclui busca global, favoritos, recentes, modelos editáveis, criação de subabas,
+caixas de texto, cópia e armazenamento local no navegador.
 
-O site é servido diretamente a partir da raiz da branch `main` pelo GitHub Pages.
+## Versão anterior preservada
+
+A versão que estava publicada anteriormente no GitHub foi preservada integralmente
+na branch **`DOC-TEMPLATE-CLINICO-V47`**.
 
 ## Privacidade
 
-Os dados salvos pelo usuário permanecem no armazenamento local do navegador. Não
-inclua informações identificáveis de pacientes em dispositivos compartilhados.
+No GitHub Pages, as alterações permanecem somente no navegador e no dispositivo em
+uso. Evite inserir dados identificáveis de pacientes em computadores compartilhados.

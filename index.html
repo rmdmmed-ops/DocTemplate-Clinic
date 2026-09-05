@@ -3,82 +3,93 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0b6e69" />
-    <meta name="description" content="Modelos clínicos editáveis para uso ortopédico." />
-    <title>DocTemplate Clínico</title>
-    <link rel="stylesheet" href="styles.css?v=2" />
+    <meta name="theme-color" content="#0d2033" />
+    <meta name="description" content="DocTemplate Ortopedia 3.0 — modelos clínicos editáveis para uso médico." />
+    <title>DocTemplate Ortopedia 3.0</title>
+    <link rel="stylesheet" href="styles.css?v=3" />
   </head>
   <body>
-    <div class="app-shell">
+    <main class="app-shell">
       <aside class="sidebar" id="sidebar">
         <div class="brand">
-          <div class="brand-mark">DT</div>
-          <div><strong>DocTemplate</strong><span>Clínico</span></div>
+          <div class="brand-mark">+</div>
+          <div><strong>DocTemplate</strong><span>ORTOPEDIA · 3.0</span></div>
+          <button class="close-nav" id="closeNav" aria-label="Fechar menu">×</button>
         </div>
-        <nav id="sectionNav" aria-label="Módulos clínicos"></nav>
-        <div class="sidebar-note">
-          <strong>Privacidade</strong>
-          <span>Evite salvar dados identificáveis de pacientes.</span>
-        </div>
-      </aside>
 
-      <main class="main">
-        <header class="topbar">
-          <button class="icon-button menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
-          <div class="search-wrap">
+        <div class="sidebar-search-area">
+          <div class="search-wrap" id="searchWrap">
             <span aria-hidden="true">⌕</span>
-            <input id="globalSearch" type="search" placeholder="Buscar modelos e conteúdos…" autocomplete="off" />
+            <input id="globalSearch" type="search" placeholder="Buscar em todos os módulos..." aria-label="Buscar em todos os módulos" autocomplete="off" />
             <kbd>Ctrl K</kbd>
           </div>
-          <span class="storage-status" id="storageStatus">Disponível offline após carregar</span>
-        </header>
+          <section class="search-panel" id="searchPanel" hidden aria-label="Resultados da pesquisa"></section>
+        </div>
 
-        <section class="workspace">
-          <div class="pane template-pane">
-            <div class="pane-header">
+        <nav class="nav-scroll" id="navigation" aria-label="Módulos clínicos"></nav>
+        <div class="sidebar-foot"><span class="status-dot"></span> Salvo neste navegador</div>
+      </aside>
+
+      <section class="workspace">
+        <button class="menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
+        <div class="content-area">
+          <div class="page-version">DOC TEMPLATE ORTOPEDIA – 3.0 <b>(VERSÃO ATUAL)</b></div>
+
+          <section class="blank-panel welcome-panel" id="welcomePanel" aria-label="Boas-vindas">
+            <div class="welcome-content">
+              <span class="welcome-symbol" aria-hidden="true">✦</span>
+              <p class="welcome-kicker">DOCTEMPLATE CLÍNICO</p>
+              <h1 id="welcomeTitle">Olá, Dr. Robson.</h1>
+              <p class="welcome-message" id="welcomeMessage">Um atendimento de cada vez, com atenção, clareza e humanidade.</p>
+              <span class="welcome-hint">Selecione uma opção no menu para começar.</span>
+            </div>
+          </section>
+
+          <section id="editorView" hidden>
+            <div class="heading-row">
               <div>
-                <span class="eyebrow">Módulo</span>
-                <h1 id="sectionTitle">Pronto-Socorro</h1>
+                <span class="eyebrow" id="sectionLabel"></span>
+                <h1><input id="templateTitle" aria-label="Nome do modelo" /></h1>
+                <p id="templateDescription"></p>
               </div>
-              <button class="button secondary" id="addTemplateButton">+ Novo</button>
+              <button class="favorite-heading" id="favoriteButton" aria-label="Favoritar modelo" title="Favoritar">☆</button>
             </div>
-            <div class="result-summary" id="resultSummary"></div>
-            <div class="template-list" id="templateList"></div>
-          </div>
 
-          <div class="pane editor-pane" id="editorPane">
-            <div class="empty-state" id="emptyState">
-              <div class="empty-icon">✚</div>
-              <h2>Selecione um modelo</h2>
-              <p>Use a busca ou escolha um item na lista para editar e copiar.</p>
-            </div>
-            <div class="editor" id="editor" hidden>
-              <div class="editor-header">
-                <div class="title-edit">
-                  <span class="eyebrow">Modelo selecionado</span>
-                  <input id="templateTitle" aria-label="Título do modelo" />
-                </div>
-                <button class="star-button" id="favoriteButton" aria-label="Favoritar modelo" title="Favoritar">☆</button>
+            <article class="document-card">
+              <div class="document-toolbar">
+                <span id="documentLabel">PRONTUÁRIO MÉDICO</span>
+                <div class="toolbar-actions"><button id="copyAllButton">COPIAR TUDO</button></div>
               </div>
-              <div class="editor-actions">
-                <button class="button primary" id="copyAllButton">Copiar tudo</button>
-                <button class="button secondary" id="addBlockButton">+ Bloco</button>
-                <button class="button secondary" id="resetButton">Restaurar original</button>
-                <button class="button danger" id="deleteTemplateButton">Excluir</button>
+              <div class="document-body" id="blockList"></div>
+              <div class="edit-help"><strong>Edição:</strong> ajuste o conteúdo ao caso real e clique em <b>Salvar alterações</b>. Evite dados identificáveis de pacientes em computadores compartilhados.</div>
+              <div class="bottom-save-actions">
+                <span class="saved-status" id="savedStatus">● SALVO NESTE NAVEGADOR</span>
+                <button class="options-button" id="resetButton">RESTAURAR ORIGINAL</button>
+                <span class="bottom-spacer"></span>
+                <button class="secondary-action" id="addBlockButton">＋ NOVA CAIXA</button>
+                <button class="danger-action" id="deleteTemplateButton">EXCLUIR SUBABA</button>
+                <button id="saveButton">SALVAR ALTERAÇÕES</button>
               </div>
-              <div id="blockList" class="block-list"></div>
-              <div class="save-bar">
-                <span id="saveHint">As alterações ficam neste navegador.</span>
-                <button class="button primary" id="saveButton">Salvar alterações</button>
-              </div>
-            </div>
-          </div>
-        </section>
-      </main>
-    </div>
+            </article>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <button class="backdrop" id="backdrop" aria-label="Fechar menu"></button>
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
-    <div class="backdrop" id="backdrop"></div>
-    <script src="data.js?v=2"></script>
-    <script src="app.js?v=2"></script>
+
+    <div class="modal-backdrop" id="newTemplateModal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="newTemplateHeading">
+        <span class="modal-icon">+</span>
+        <h2 id="newTemplateHeading">Nova subaba</h2>
+        <p id="newTemplateDescription">Crie um novo modelo dentro do módulo selecionado.</p>
+        <label>Nome<input id="newTemplateName" maxlength="100" placeholder="DIGITE O NOME" /></label>
+        <div class="modal-actions"><button data-close-modal>Cancelar</button><button class="primary-button" id="confirmNewTemplate">Criar subaba</button></div>
+      </div>
+    </div>
+
+    <script src="data.js?v=3"></script>
+    <script src="app.js?v=3"></script>
   </body>
 </html>
