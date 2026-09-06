@@ -5,15 +5,15 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0d2033" />
     <meta name="description" content="DocTemplate Ortopedia 3.0 — modelos clínicos editáveis para uso médico." />
-    <title>DocTemplate Ortopedia 3.0</title>
-    <link rel="stylesheet" href="styles.css?v=3" />
+    <title>DocTemplate Ortopedia 3.1</title>
+    <link rel="stylesheet" href="styles.css?v=4" />
   </head>
   <body>
     <main class="app-shell">
       <aside class="sidebar" id="sidebar">
         <div class="brand">
           <div class="brand-mark">+</div>
-          <div><strong>DocTemplate</strong><span>ORTOPEDIA · 3.0</span></div>
+          <div><strong>DocTemplate</strong><span>ORTOPEDIA · 3.1</span></div>
           <button class="close-nav" id="closeNav" aria-label="Fechar menu">×</button>
         </div>
 
@@ -21,19 +21,26 @@
           <div class="search-wrap" id="searchWrap">
             <span aria-hidden="true">⌕</span>
             <input id="globalSearch" type="search" placeholder="Buscar em todos os módulos..." aria-label="Buscar em todos os módulos" autocomplete="off" />
-            <kbd>Ctrl K</kbd>
+            <kbd>Ctrl&nbsp;K</kbd>
           </div>
           <section class="search-panel" id="searchPanel" hidden aria-label="Resultados da pesquisa"></section>
         </div>
 
         <nav class="nav-scroll" id="navigation" aria-label="Módulos clínicos"></nav>
-        <div class="sidebar-foot"><span class="status-dot"></span> Salvo neste navegador</div>
+        <div class="sidebar-foot">
+          <div class="sidebar-foot-status"><span class="status-dot"></span> Salvo neste navegador</div>
+          <div class="sidebar-foot-actions">
+            <button id="exportButton" title="Baixa um arquivo .json com todos os seus modelos e edições">⇩ Exportar</button>
+            <button id="importButton" title="Lê um arquivo .json exportado em outro computador">⇧ Importar</button>
+            <input id="importFile" type="file" accept=".json,application/json" hidden />
+          </div>
+        </div>
       </aside>
 
       <section class="workspace">
         <button class="menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
         <div class="content-area">
-          <div class="page-version">DOC TEMPLATE ORTOPEDIA – 3.0 <b>(VERSÃO ATUAL)</b></div>
+          <div class="page-version">DOC TEMPLATE ORTOPEDIA – 3.1 <b>(VERSÃO ATUAL)</b></div>
 
           <section class="blank-panel welcome-panel" id="welcomePanel" aria-label="Boas-vindas">
             <div class="welcome-content">
@@ -49,7 +56,7 @@
             <div class="heading-row">
               <div>
                 <span class="eyebrow" id="sectionLabel"></span>
-                <h1><input id="templateTitle" aria-label="Nome do modelo" /></h1>
+                <h1><textarea id="templateTitle" rows="1" aria-label="Nome do modelo"></textarea></h1>
                 <p id="templateDescription"></p>
               </div>
               <button class="favorite-heading" id="favoriteButton" aria-label="Favoritar modelo" title="Favoritar">☆</button>
@@ -61,14 +68,13 @@
                 <div class="toolbar-actions"><button id="copyAllButton">COPIAR TUDO</button></div>
               </div>
               <div class="document-body" id="blockList"></div>
-              <div class="edit-help"><strong>Edição:</strong> ajuste o conteúdo ao caso real e clique em <b>Salvar alterações</b>. Evite dados identificáveis de pacientes em computadores compartilhados.</div>
+              <div class="edit-help"><strong>Edição:</strong> tudo que você digita é salvo automaticamente neste navegador. Use <b>Exportar</b> para levar seus modelos a outro computador. Evite dados identificáveis de pacientes em computadores compartilhados.</div>
               <div class="bottom-save-actions">
                 <span class="saved-status" id="savedStatus">● SALVO NESTE NAVEGADOR</span>
                 <button class="options-button" id="resetButton">RESTAURAR ORIGINAL</button>
                 <span class="bottom-spacer"></span>
                 <button class="secondary-action" id="addBlockButton">＋ NOVA CAIXA</button>
                 <button class="danger-action" id="deleteTemplateButton">EXCLUIR SUBABA</button>
-                <button id="saveButton">SALVAR ALTERAÇÕES</button>
               </div>
             </article>
           </section>
@@ -89,7 +95,17 @@
       </div>
     </div>
 
-    <script src="data.js?v=3"></script>
-    <script src="app.js?v=3"></script>
+    <div class="modal-backdrop" id="legacyModal" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="legacyHeading">
+        <span class="modal-icon">↻</span>
+        <h2 id="legacyHeading">Encontrei dados da versão anterior</h2>
+        <p id="legacyCount"></p>
+        <p>Posso trazê-los para esta versão. Modelos que você editou ou criou na V47 serão mesclados; nada do que já está aqui é apagado.</p>
+        <div class="modal-actions"><button id="legacySkip">Agora não</button><button class="primary-button" id="legacyImport">Importar da V47</button></div>
+      </div>
+    </div>
+
+    <script src="data.js?v=4"></script>
+    <script src="app.js?v=4"></script>
   </body>
 </html>
