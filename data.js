@@ -1,5 +1,5 @@
 window.DOCTEMPLATE_SEED = {
-  "version": 1,
+  "version": 2,
   "sections": [
     {
       "id": "ps",
@@ -267,7 +267,7 @@ window.DOCTEMPLATE_SEED = {
       "templates": [
         {
           "id": "amb-primeira-consulta-ortopedia-geral-1",
-          "title": "PRIMEIRA CONSULTA - ORTOPEDIA GERAL",
+          "title": "PRIMEIRA CONSULTA — ORTOPEDIA GERAL",
           "blocks": [
             {
               "title": "TEXTO",
@@ -277,7 +277,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "amb-retorno-pos-op-fratura-osteossintese-2",
-          "title": "RETORNO POS-OP - FRATURA / OSTEOSSINTESE",
+          "title": "RETORNO PÓS-OP — FRATURA / OSTEOSSÍNTESE",
           "blocks": [
             {
               "title": "TEXTO",
@@ -287,7 +287,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "amb-retorno-tratamento-conservador-fratura-3",
-          "title": "RETORNO - TRATAMENTO CONSERVADOR - FRATURA",
+          "title": "RETORNO — TRATAMENTO CONSERVADOR — FRATURA",
           "blocks": [
             {
               "title": "TEXTO",
@@ -297,7 +297,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "amb-retorno-patologia-degenerativa-tendinopatia-4",
-          "title": "RETORNO - PATOLOGIA DEGENERATIVA / TENDINOPATIA",
+          "title": "RETORNO — PATOLOGIA DEGENERATIVA / TENDINOPATIA",
           "blocks": [
             {
               "title": "TEXTO",
@@ -307,7 +307,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "amb-retorno-dor-lombar-cervical-5",
-          "title": "RETORNO - DOR LOMBAR / CERVICAL",
+          "title": "RETORNO — DOR LOMBAR / CERVICAL",
           "blocks": [
             {
               "title": "TEXTO",
@@ -324,7 +324,7 @@ window.DOCTEMPLATE_SEED = {
       "templates": [
         {
           "id": "enf-pos-op-imediato-rpa-1",
-          "title": "POS-OP IMEDIATO - RPA",
+          "title": "PÓS-OP IMEDIATO — RPA",
           "blocks": [
             {
               "title": "TEXTO",
@@ -334,7 +334,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "enf-evolucao-diaria-pos-op-enfermaria-2",
-          "title": "EVOLUCAO DIARIA - POS-OP ENFERMARIA",
+          "title": "EVOLUÇÃO DIÁRIA — PÓS-OP ENFERMARIA",
           "blocks": [
             {
               "title": "TEXTO",
@@ -344,7 +344,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "enf-alta-hospitalar-pos-op-3",
-          "title": "ALTA HOSPITALAR - POS-OP",
+          "title": "ALTA HOSPITALAR — PÓS-OP",
           "blocks": [
             {
               "title": "TEXTO",
@@ -354,7 +354,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "enf-controle-de-danos-fixador-externo-4",
-          "title": "CONTROLE DE DANOS - FIXADOR EXTERNO",
+          "title": "CONTROLE DE DANOS — FIXADOR EXTERNO",
           "blocks": [
             {
               "title": "TEXTO",
@@ -364,7 +364,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "enf-pre-operatorio-urgencia-eletivo-5",
-          "title": "PRE-OPERATORIO - URGENCIA / ELETIVO",
+          "title": "PRÉ-OPERATÓRIO — URGÊNCIA / ELETIVO",
           "blocks": [
             {
               "title": "TEXTO",
@@ -381,7 +381,7 @@ window.DOCTEMPLATE_SEED = {
       "templates": [
         {
           "id": "int-internacao-tratamento-cirurgico-1",
-          "title": "INTERNACAO - TRATAMENTO CIRURGICO",
+          "title": "INTERNAÇÃO — TRATAMENTO CIRÚRGICO",
           "blocks": [
             {
               "title": "TEXTO",
@@ -391,7 +391,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "int-internacao-tratamento-conservador-2",
-          "title": "INTERNACAO - TRATAMENTO CONSERVADOR",
+          "title": "INTERNAÇÃO — TRATAMENTO CONSERVADOR",
           "blocks": [
             {
               "title": "TEXTO",
@@ -448,7 +448,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "enc-cirurgia-da-mao-4",
-          "title": "CIRURGIA DA MAO",
+          "title": "CIRURGIA DA MÃO",
           "blocks": [
             {
               "title": "ENCAMINHAMENTO",
@@ -488,7 +488,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "enc-cirurgia-do-pe-e-tornozelo-8",
-          "title": "CIRURGIA DO PE E TORNOZELO",
+          "title": "CIRURGIA DO PÉ E TORNOZELO",
           "blocks": [
             {
               "title": "ENCAMINHAMENTO",
@@ -1379,7 +1379,7 @@ window.DOCTEMPLATE_SEED = {
       "templates": [
         {
           "id": "cir-fratura-de-clavicula-placa-e-parafusos-1",
-          "title": "FRATURA DE CLAVICULA - PLACA E PARAFUSOS",
+          "title": "FRATURA DE CLAVÍCULA — PLACA E PARAFUSOS",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1389,7 +1389,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-umero-proximal-placa-bloqueada-2",
-          "title": "FRATURA DE UMERO PROXIMAL - PLACA BLOQUEADA",
+          "title": "FRATURA DE ÚMERO PROXIMAL — PLACA BLOQUEADA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1399,7 +1399,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-diafisaria-de-umero-haste-bloqueada-3",
-          "title": "FRATURA DIAFISARIA DE UMERO - HASTE BLOQUEADA",
+          "title": "FRATURA DIAFISÁRIA DE ÚMERO — HASTE BLOQUEADA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1409,7 +1409,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-umero-distal-dupla-placa-4",
-          "title": "FRATURA DE UMERO DISTAL - DUPLA PLACA",
+          "title": "FRATURA DE ÚMERO DISTAL — DUPLA PLACA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1419,7 +1419,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-supracondiliana-de-umero-reducao-fechada-fios-5",
-          "title": "FRATURA SUPRACONDILIANA DE UMERO - REDUCAO FECHADA + FIOS",
+          "title": "FRATURA SUPRACONDILIANA DE ÚMERO — REDUÇÃO FECHADA + FIOS",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1429,7 +1429,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-olecrano-placa-bloqueada-6",
-          "title": "FRATURA DE OLECRANO - PLACA BLOQUEADA",
+          "title": "FRATURA DE OLÉCRANO — PLACA BLOQUEADA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1439,7 +1439,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-diafisaria-radio-e-ulna-dupla-placa-7",
-          "title": "FRATURA DIAFISARIA RADIO E ULNA - DUPLA PLACA",
+          "title": "FRATURA DIAFISÁRIA RÁDIO E ULNA — DUPLA PLACA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1449,7 +1449,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-radio-distal-placa-volar-bloqueada-8",
-          "title": "FRATURA DE RADIO DISTAL - PLACA VOLAR BLOQUEADA",
+          "title": "FRATURA DE RÁDIO DISTAL — PLACA VOLAR BLOQUEADA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1459,7 +1459,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-radio-distal-reducao-fechada-fios-kirschner-9",
-          "title": "FRATURA DE RADIO DISTAL - REDUCAO FECHADA + FIOS KIRSCHNER",
+          "title": "FRATURA DE RÁDIO DISTAL — REDUÇÃO FECHADA + FIOS KIRSCHNER",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1469,7 +1469,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-metacarpo-placa-e-parafusos-10",
-          "title": "FRATURA DE METACARPO - PLACA E PARAFUSOS",
+          "title": "FRATURA DE METACARPO — PLACA E PARAFUSOS",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1479,7 +1479,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-metacarpo-reducao-fechada-fios-boxer-11",
-          "title": "FRATURA DE METACARPO - REDUCAO FECHADA + FIOS (BOXER)",
+          "title": "FRATURA DE METACARPO — REDUÇÃO FECHADA + FIOS (BOXER)",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1489,7 +1489,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-femur-proximal-haste-cefalomedular-curta-12",
-          "title": "FRATURA DE FEMUR PROXIMAL - HASTE CEFALOMEDULAR CURTA",
+          "title": "FRATURA DE FÊMUR PROXIMAL — HASTE CEFALOMEDULAR CURTA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1499,7 +1499,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-subtrocanterica-de-femur-haste-longa-13",
-          "title": "FRATURA SUBTROCANTERICA DE FEMUR - HASTE LONGA",
+          "title": "FRATURA SUBTROCANTÉRICA DE FÊMUR — HASTE LONGA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1509,7 +1509,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-colo-de-femur-parafusos-canulados-14",
-          "title": "FRATURA DE COLO DE FEMUR - PARAFUSOS CANULADOS",
+          "title": "FRATURA DE COLO DE FÊMUR — PARAFUSOS CANULADOS",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1519,7 +1519,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-diafisaria-de-femur-haste-retrograda-15",
-          "title": "FRATURA DIAFISARIA DE FEMUR - HASTE RETROGRADA",
+          "title": "FRATURA DIAFISÁRIA DE FÊMUR — HASTE RETRÓGRADA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1529,7 +1529,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-patela-cerclagem-canulados-16",
-          "title": "FRATURA DE PATELA - CERCLAGEM + CANULADOS",
+          "title": "FRATURA DE PATELA — CERCLAGEM + CANULADOS",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1539,7 +1539,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-planalto-tibial-lateral-placa-bloqueada-17",
-          "title": "PLANALTO TIBIAL LATERAL - PLACA BLOQUEADA",
+          "title": "PLANALTO TIBIAL LATERAL — PLACA BLOQUEADA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1549,7 +1549,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-diafisaria-de-tibia-haste-bloqueada-18",
-          "title": "FRATURA DIAFISARIA DE TIBIA - HASTE BLOQUEADA",
+          "title": "FRATURA DIAFISÁRIA DE TÍBIA — HASTE BLOQUEADA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1559,7 +1559,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-bimaleolar-de-tornozelo-placa-canulados-19",
-          "title": "FRATURA BIMALEOLAR DE TORNOZELO - PLACA + CANULADOS",
+          "title": "FRATURA BIMALEOLAR DE TORNOZELO — PLACA + CANULADOS",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1569,7 +1569,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-maleolar-lateral-placa-terco-de-tubo-20",
-          "title": "FRATURA MALEOLAR LATERAL - PLACA TERCO DE TUBO",
+          "title": "FRATURA MALEOLAR LATERAL — PLACA TERÇO DE TUBO",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1579,7 +1579,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-fratura-de-calcaneo-placa-bloqueada-21",
-          "title": "FRATURA DE CALCANEO - PLACA BLOQUEADA",
+          "title": "FRATURA DE CALCÂNEO — PLACA BLOQUEADA",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1589,7 +1589,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-tenorrafia-de-tendao-de-aquiles-22",
-          "title": "TENORRAFIA DE TENDAO DE AQUILES",
+          "title": "TENORRAFIA DE TENDÃO DE AQUILES",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1619,7 +1619,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-curativo-cirurgico-desbridamento-25",
-          "title": "CURATIVO CIRURGICO + DESBRIDAMENTO",
+          "title": "CURATIVO CIRÚRGICO + DESBRIDAMENTO",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1629,7 +1629,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-retirada-de-material-de-sintese-26",
-          "title": "RETIRADA DE MATERIAL DE SINTESE",
+          "title": "RETIRADA DE MATERIAL DE SÍNTESE",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1639,7 +1639,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-controle-de-danos-fixador-externo-27",
-          "title": "CONTROLE DE DANOS - FIXADOR EXTERNO",
+          "title": "CONTROLE DE DANOS — FIXADOR EXTERNO",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -1649,7 +1649,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "cir-curativo-a-vacuo-vac-therapy-28",
-          "title": "CURATIVO A VACUO - VAC THERAPY",
+          "title": "CURATIVO A VÁCUO — VAC THERAPY",
           "blocks": [
             {
               "title": "TEXTO COMPLETO",
@@ -2738,7 +2738,7 @@ window.DOCTEMPLATE_SEED = {
       "templates": [
         {
           "id": "rel-inss-fratura-tratamento-conservador-1",
-          "title": "INSS – FRATURA – TRATAMENTO CONSERVADOR",
+          "title": "INSS — FRATURA — TRATAMENTO CONSERVADOR",
           "blocks": [
             {
               "title": "RELATÓRIO MÉDICO",
@@ -2748,7 +2748,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "rel-inss-pos-operatorio-ortopedico-2",
-          "title": "INSS – PÓS-OPERATÓRIO ORTOPÉDICO",
+          "title": "INSS — PÓS-OPERATÓRIO ORTOPÉDICO",
           "blocks": [
             {
               "title": "RELATÓRIO MÉDICO",
@@ -2758,7 +2758,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "rel-inss-dor-cronica-patologia-ortopedica-3",
-          "title": "INSS – DOR CRÔNICA / PATOLOGIA ORTOPÉDICA",
+          "title": "INSS — DOR CRÔNICA / PATOLOGIA ORTOPÉDICA",
           "blocks": [
             {
               "title": "RELATÓRIO MÉDICO",
@@ -2768,7 +2768,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "rel-inss-prorrogacao-de-afastamento-4",
-          "title": "INSS – PRORROGAÇÃO DE AFASTAMENTO",
+          "title": "INSS — PRORROGAÇÃO DE AFASTAMENTO",
           "blocks": [
             {
               "title": "RELATÓRIO MÉDICO",
@@ -2778,7 +2778,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "rel-inss-apto-para-retorno-ao-trabalho-5",
-          "title": "INSS – APTO PARA RETORNO AO TRABALHO",
+          "title": "INSS — APTO PARA RETORNO AO TRABALHO",
           "blocks": [
             {
               "title": "RELATÓRIO MÉDICO",
@@ -2788,7 +2788,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "rel-inss-apto-com-restricoes-6",
-          "title": "INSS – APTO COM RESTRIÇÕES",
+          "title": "INSS — APTO COM RESTRIÇÕES",
           "blocks": [
             {
               "title": "RELATÓRIO MÉDICO",
@@ -2798,7 +2798,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "rel-convenio-solicitacao-de-exame-7",
-          "title": "CONVÊNIO – SOLICITAÇÃO DE EXAME",
+          "title": "CONVÊNIO — SOLICITAÇÃO DE EXAME",
           "blocks": [
             {
               "title": "RELATÓRIO MÉDICO",
@@ -2808,7 +2808,7 @@ window.DOCTEMPLATE_SEED = {
         },
         {
           "id": "rel-convenio-solicitacao-cirurgica-8",
-          "title": "CONVÊNIO – SOLICITAÇÃO CIRÚRGICA",
+          "title": "CONVÊNIO — SOLICITAÇÃO CIRÚRGICA",
           "blocks": [
             {
               "title": "RELATÓRIO MÉDICO",
