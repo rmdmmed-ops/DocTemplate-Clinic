@@ -1,0 +1,11 @@
+const fs = require('node:fs');
+const path = require('node:path');
+const vm = require('node:vm');
+const root = path.resolve(__dirname, '..');
+for (const file of ['app.js','core.js','data.js','sw.js']) new vm.Script(fs.readFileSync(path.join(root,file),'utf8'), { filename:file });
+const state = { window:{} }; vm.runInNewContext(fs.readFileSync(path.join(root,'data.js'),'utf8'), state);
+require('../core.js').validate(state.window.DOCTEMPLATE_SEED);
+const files = ['index.html','app.js','core.js','data.js','styles.css','manifest.webmanifest','sw.js','icons','anatomy','3.2','4.0'];
+fs.mkdirSync(path.join(root,'dist'), { recursive:true });
+for(const file of files) fs.cpSync(path.join(root,file), path.join(root,'dist',file), { recursive:true });
+console.log('Validated and packaged ' + state.window.DOCTEMPLATE_SEED.sections.flatMap(s=>s.templates).length + ' models in dist/.');

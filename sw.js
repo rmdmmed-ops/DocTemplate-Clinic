@@ -11,14 +11,17 @@
   Sem isso, quem já instalou continua vendo a versão antiga.
 */
 
-const CACHE = "doctemplate-4.1.0";
+const CACHE = "doctemplate-5.0.0";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=7",
-  "./data.js?v=7",
-  "./app.js?v=7",
+  "./styles.css?v=8",
+  "./data.js?v=8",
+  "./core.js?v=8",
+  "./app.js?v=8",
+  "./anatomy/body-front.svg",
+  "./anatomy/body-back.svg",
   // A 3.2 preservada também fica offline: é a rota de volta durante um plantão,
   // e uma rota de volta que só funciona com internet não serve de nada.
   "./3.2/",
@@ -43,7 +46,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(
     (async () => {
       const names = await caches.keys();
-      await Promise.all(names.filter((name) => name !== CACHE).map((name) => caches.delete(name)));
+      await Promise.all(names.filter((name) => name.startsWith('doctemplate-') && name !== CACHE).map((name) => caches.delete(name)));
       await self.clients.claim();
     })()
   );
@@ -64,9 +67,14 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(
       (async () => {
         try {
+          // Serve the installed HTML with its matching cached scripts. New
+          // assets activate together only after the explicit update action.
+          const installed = await caches.open(CACHE);
+          const key = new URL(request.url).pathname.includes('/3.2/') ? './3.2/index.html' : './index.html';
+          const cached = await installed.match(key);
+          if (cached) return cached;
           const response = await fetch(request);
-          const cache = await caches.open(CACHE);
-          await cache.put(new URL(request.url).pathname.includes("/3.2/") ? "./3.2/index.html" : "./index.html", response.clone());
+          if (response.ok) await installed.put(key, response.clone());
           return response;
         } catch (_) {
           // devolve a página pedida, não a da raiz: /3.2/ offline tem que abrir a 3.2

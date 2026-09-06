@@ -1,0 +1,11 @@
+{
+  "name": "doctemplate-clinic",
+  "version": "5.0.0",
+  "private": true,
+  "scripts": {
+    "test": "node --test tests/core.test.cjs",
+    "test:browser": "node tests/browser.cjs",
+    "build": "node scripts/build.cjs",
+    "start": "node scripts/serve.cjs"
+  }
+}

@@ -1,4 +1,10 @@
-# DOC TEMPLATE ORTOPEDIA – 4.1 (VERSÃO ATUAL)
+# DocTemplate Ortopedia — 5.0
+
+Reconstrução da interface e do fluxo de documentos, preservando os 244 modelos clínicos da 4.1 e a experiência de biblioteca da 3.2. Mapa vetorial proporcional, busca estável, favoritos, edição de modelos e rascunhos com variáveis preservadas.
+
+Consulte [RECONSTRUCTION.md](RECONSTRUCTION.md) para uso, migração, testes, publicação no GitHub Pages e atribuição das silhuetas.
+
+## Registro histórico — versão 4.1
 
 Banco de modelos clínicos ortopédicos que funciona como roteiro e checklist no
 atendimento: escolher o modelo, marcar o segmento no mapa do corpo e copiar o
