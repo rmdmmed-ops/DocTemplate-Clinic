@@ -1,10 +1,29 @@
-# DOC TEMPLATE ORTOPEDIA – 3.1 (VERSÃO ATUAL)
+# DOC TEMPLATE ORTOPEDIA – 3.2 (VERSÃO ATUAL)
 
 Versão do **DocTemplate Clínico V47**, publicada originalmente no site da OpenAI em
 19/08/2026 e adaptada para funcionar no GitHub Pages.
 
 Inclui busca global, favoritos, recentes, modelos editáveis, criação de subabas,
 caixas de texto, cópia e armazenamento local no navegador.
+
+## Novidades da 3.2 (06/09/2026) — funciona sem internet
+
+- **Aplicativo instalável (PWA).** Pode ser adicionado à tela inicial do celular
+  e aberto como app, sem barra de navegador.
+- **Funciona offline por completo.** Os 244 modelos, o CSS e o JavaScript ficam
+  guardados no aparelho pelo service worker. Wi-fi de hospital caindo ou sem
+  rede nenhuma, o app abre e funciona igual — busca, edição, cópia e salvamento.
+- **Aviso de atualização.** Quando uma versão nova é publicada, aparece
+  "Nova versão disponível. Toque para atualizar." em vez de o app ficar preso
+  numa versão antiga.
+
+### Como instalar no celular
+
+- **iPhone (Safari):** abrir o site → botão Compartilhar → "Adicionar à Tela de Início".
+- **Android (Chrome):** menu ⋮ → "Instalar app" / "Adicionar à tela inicial".
+
+Instalado na tela inicial, o app usa um armazenamento próprio, que não é varrido
+pela limpeza automática de dados que o Safari faz em sites não visitados há 7 dias.
 
 ## Novidades da 3.1 (06/09/2026)
 
@@ -28,7 +47,14 @@ caixas de texto, cópia e armazenamento local no navegador.
 
 1. Edite o `data.js` (adicione ou altere modelos, mantendo os `id`s existentes).
 2. Aumente `"version"` no topo do `data.js` em 1.
-3. Faça o commit. Quem já usa o app recebe os modelos novos sem perder as edições.
+3. Aumente os `?v=N` no `index.html` (styles.css, data.js, app.js).
+4. No `sw.js`, atualize a lista `ASSETS` com os mesmos `?v=N` **e** mude o nome do
+   cache em `CACHE` (ex.: `doctemplate-3.2.0` → `doctemplate-3.2.1`).
+5. Faça o commit. Quem já usa o app recebe o aviso de nova versão e, ao tocar,
+   recebe os modelos novos sem perder as edições.
+
+O passo 4 é o que mais se esquece: sem mudar `CACHE`, quem instalou o app continua
+vendo a versão antiga para sempre.
 
 Não altere `STORAGE_KEY` em `app.js`: mudar a chave foi o que deixou órfãos os dados
 da V47.
