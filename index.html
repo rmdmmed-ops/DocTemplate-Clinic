@@ -13,7 +13,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="DocTemplate" />
-<link rel="stylesheet" href="styles.css?v=6" />
+<link rel="stylesheet" href="styles.css?v=7" />
 </head>
 <body>
 <div class="app" id="app">
@@ -21,7 +21,7 @@
   <section class="col c1" id="c1">
     <div class="brand">
       <div class="mk">+</div>
-      <div><strong>DocTemplate</strong><span>ORTOPEDIA · 4.0</span></div>
+      <div><strong>DocTemplate</strong><span>ORTOPEDIA · 4.1</span></div>
       <button class="fecha-menu" id="fechaMenu" aria-label="Fechar menu">×</button>
     </div>
     <div class="gsearch">
@@ -47,6 +47,11 @@
       <span class="vista" id="vista">Frente</span>
     </div>
     <div class="palco" id="palco"></div>
+    <div class="vistas" id="vistas" role="group" aria-label="Como ver o corpo">
+      <button type="button" data-vista="corpo" aria-pressed="true">Corpo</button>
+      <button type="button" data-vista="maos" aria-pressed="false">Mãos</button>
+      <button type="button" data-vista="pes" aria-pressed="false">Pés</button>
+    </div>
     <div class="pe2">
       <div class="sel" id="sel"></div>
       <button class="bilat" id="bilat" aria-pressed="false" hidden><span class="bx" aria-hidden="true"></span> Bilateral (direito e esquerdo)</button>
@@ -120,7 +125,7 @@
     });
   }
 </script>
-<script src="data.js?v=6"></script>
-<script src="app.js?v=6"></script>
+<script src="data.js?v=7"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

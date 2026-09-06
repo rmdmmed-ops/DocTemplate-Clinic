@@ -11,14 +11,14 @@
   Sem isso, quem já instalou continua vendo a versão antiga.
 */
 
-const CACHE = "doctemplate-4.0.0";
+const CACHE = "doctemplate-4.1.0";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=6",
-  "./data.js?v=6",
-  "./app.js?v=6",
+  "./styles.css?v=7",
+  "./data.js?v=7",
+  "./app.js?v=7",
   // A 3.2 preservada também fica offline: é a rota de volta durante um plantão,
   // e uma rota de volta que só funciona com internet não serve de nada.
   "./3.2/",

@@ -36,6 +36,14 @@
   def("antebraco","antebraço","m",true); def("punho","punho","m",true); def("mao","mão","f",true);
   def("quadril","quadril","m",true); def("coxa","coxa","f",true); def("joelho","joelho","m",true);
   def("perna","perna","f",true); def("tornozelo","tornozelo","m",true); def("pe","pé","m",true);
+  // Dedos: nomenclatura de prontuário — polegar e quirodáctilos, hálux e pododáctilos.
+  def("mao1","polegar","m",true);
+  for (let i = 2; i <= 5; i++) def("mao" + i, i + "º quirodáctilo", "m", true);
+  def("pe1","hálux","m",true);
+  for (let i = 2; i <= 5; i++) def("pe" + i, i + "º pododáctilo", "m", true);
+  // A qual vista de detalhe cada dedo pertence.
+  const DETALHE = { mao: "maos", pe: "pes" };
+  const dedoDe = id => (/^mao[1-5]$/.test(id) ? "maos" : /^pe[1-5]$/.test(id) ? "pes" : null);
 
   const VARIAVEIS = [
     ["{{SEG}}", "PÉ DIREITO", "o nome do segmento, sem preposição"],
@@ -61,14 +69,19 @@
     return null;
   }
   const difere = (a, b) => JSON.stringify(a.blocks) !== JSON.stringify(b.blocks);
-  function doUsuario(t) {
+  /* Um modelo é "do usuário" quando ele criou ou editou — nunca só porque o
+     texto do seed mudou. Comparar com o seed NOVO marcaria os 244 como
+     editados e nenhuma melhoria de texto chegaria a quem já usa o app.
+     Desde a 3.1 toda edição grava `modified`; é essa a prova de autoria. */
+  function doUsuario(t, mesmaSafra) {
     const o = doSeed(t.id);
-    if (!o) return true;
-    if (t.modified) return true;
-    return difere(t, o);
+    if (!o) return true;                     // criado pelo usuário
+    if (t.modified) return true;             // editado por ele
+    return mesmaSafra ? difere(t, o) : false; // safra anterior sem marca: o seed novo entra
   }
   function mesclar(salvo, base = novoEstado()) {
     const r = base;
+    const mesmaSafra = salvo.version === seed.version;
     const apagados = new Set([...(r.deleted || []), ...(Array.isArray(salvo.deleted) ? salvo.deleted : [])]);
     r.deleted = [...apagados];
     (salvo.sections || []).forEach(ss => {
@@ -78,13 +91,19 @@
         if (!t || !t.id || !Array.isArray(t.blocks)) return;
         const i = alvo.templates.findIndex(x => x.id === t.id);
         if (i === -1) { if (!apagados.has(t.id) || !doSeed(t.id)) alvo.templates.push(clone(t)); return; }
-        if (doUsuario(t)) {
+        if (doUsuario(t, mesmaSafra)) {
           const atual = alvo.templates[i];
           if (atual.modified && difere(atual, t)) {
             alvo.templates.push(Object.assign(clone(t), { id: uid(alvo.id), title: `${t.title} (IMPORTADO)` }));
           } else {
             // o campo usa vem sempre do seed: é estrutura, não conteúdo do usuário
-            alvo.templates[i] = Object.assign(clone(t), { usa: atual.usa || {}, mecanismoPadrao: atual.mecanismoPadrao, modified: t.modified || Date.now() });
+            // a estrutura (o que o mapa preenche) vem sempre do seed; só o
+            // texto é do usuário
+            alvo.templates[i] = Object.assign(clone(t), {
+              usa: atual.usa || {}, mecanismoPadrao: atual.mecanismoPadrao,
+              segPadrao: atual.segPadrao, fixo: atual.fixo,
+              modified: t.modified || Date.now(),
+            });
           }
         }
       });
@@ -131,6 +150,17 @@
   const mod = id => estado.sections.find(s => s.id === id);
   const usaSeg = t => Boolean(t && t.usa && t.usa.segmento);
   const usaMec = t => Boolean(t && t.usa && t.usa.mecanismo);
+  // O modelo já é de um lado (ex.: "TC — COTOVELO DIREITO"): o mapa mostra e explica.
+  const fixoDe = t => (t && t.fixo && SEG[t.fixo.seg]) ? t.fixo : null;
+  const mostraCorpo = t => Boolean(t) && (usaSeg(t) || Boolean(fixoDe(t)));
+  // Regra do esqueleto apendicular: quem tem lado, pede lado.
+  const temLado = id => Boolean(id && SEG[id] && SEG[id].lat);
+  function aplicarPadroes(t) {
+    const fx = fixoDe(t);
+    if (fx) { seg = fx.seg; lado = fx.lado || null; bilateral = Boolean(fx.bilateral); return; }
+    // O lado é do paciente, não do modelo: quando já foi escolhido, ele permanece.
+    if (t && t.segPadrao && SEG[t.segPadrao]) seg = t.segPadrao;
+  }
 
   /* ---------- salvamento ---------- */
   function gravar() { estado.savedAt = Date.now(); localStorage.setItem(CHAVE, JSON.stringify(estado)); }
@@ -175,53 +205,132 @@
   }
   const temVar = t => t.blocks.some(b => /\{\{[A-Z_]+\}\}/.test(b.content));
 
-  /* ---------- desenho do corpo ---------- */
-  function cap(cx, y1, w1, y2, w2, r) {
-    const l1 = cx - w1, r1 = cx + w1, l2 = cx - w2, r2 = cx + w2;
-    return `M${l1 + r},${y1} L${r1 - r},${y1} Q${r1},${y1} ${r1},${y1 + r} L${r2},${y2 - r} Q${r2},${y2} ${r2 - r},${y2} L${l2 + r},${y2} Q${l2},${y2} ${l2},${y2 - r} L${l1},${y1 + r} Q${l1},${y1} ${l1 + r},${y1} Z`;
+  /* ---------- desenho do corpo ----------
+     Cada região é o casco convexo de dois círculos. As articulações ficam
+     redondas e o membro afina como um membro de verdade, em vez de parecer
+     um tubo. Convenção anatômica: o lado direito do paciente fica à
+     esquerda de quem olha. */
+  function link(x1, y1, r1, x2, y2, r2) {
+    const dx = x2 - x1, dy = y2 - y1, d = Math.hypot(dx, dy);
+    const f = n => n.toFixed(1);
+    if (d < 0.01 || d <= Math.abs(r1 - r2)) {
+      const R = Math.max(r1, r2), X = r1 >= r2 ? x1 : x2, Y = r1 >= r2 ? y1 : y2;
+      return `M${f(X - R)},${f(Y)}a${f(R)},${f(R)} 0 1,0 ${f(2 * R)},0a${f(R)},${f(R)} 0 1,0 ${f(-2 * R)},0Z`;
+    }
+    const a = Math.atan2(dy, dx), b = Math.acos((r1 - r2) / d);
+    const P = (x, y, r, ang) => [x + r * Math.cos(ang), y + r * Math.sin(ang)];
+    const [ax, ay] = P(x1, y1, r1, a + b), [bx, by] = P(x2, y2, r2, a + b);
+    const [cx, cy] = P(x2, y2, r2, a - b), [ex, ey] = P(x1, y1, r1, a - b);
+    // Percorre: tangente -> calota externa do círculo 2 -> tangente -> calota
+    // externa do círculo 1. Sempre no sentido decrescente do ângulo (sweep 0).
+    const arco2 = b > Math.PI / 2 ? 1 : 0;   // calota pequena quando b é pequeno
+    const arco1 = b < Math.PI / 2 ? 1 : 0;   // a do círculo 1 é a complementar
+    return `M${f(ax)},${f(ay)}L${f(bx)},${f(by)}A${f(r2)},${f(r2)} 0 ${arco2},0 ${f(cx)},${f(cy)}`
+         + `L${f(ex)},${f(ey)}A${f(r1)},${f(r1)} 0 ${arco1},0 ${f(ax)},${f(ay)}Z`;
   }
+  const elipse = (cx, cy, rx, ry) => `M${cx - rx},${cy}a${rx},${ry} 0 1,0 ${2 * rx},0a${rx},${ry} 0 1,0 ${-2 * rx},0Z`;
   const M = x => 320 - x;
-  const MEMBROS = [
-    ["ombro",118,100,25,134,19,15],["braco",112,136,18,214,15,13],["cotovelo",110,216,16,242,15,12],
-    ["antebraco",107,244,15,318,12,11],["punho",105,320,12,338,11,9],["mao",103,340,14,386,11,12],
-    ["quadril",140,300,23,338,21,15],["coxa",139,340,22,442,16,16],["joelho",138,444,17,474,15,13],
-    ["perna",137,476,15,570,11,12],["tornozelo",136,572,11,592,10,8],["pe",135,594,12,630,16,11],
-  ];
-  const CABECA = `<ellipse cx="160" cy="48" rx="26" ry="32"/>`;
-  const PESCOCO = `<path d="${cap(160,76,11,104,15,6)}"/>`;
-  const TRONCO = `<path d="${cap(160,100,36,300,27,20)}"/>`;
-  function reg(id, ld, d) {
+  const esp = c => [M(c[0]), c[1], c[2]];
+  const lk = (a, b) => link(a[0], a[1], a[2], b[0], b[1], b[2]);
+  const lkM = (a, b) => lk(esp(a), esp(b));
+
+  function reg(id, ld, d, cls) {
     const g = SEG[id];
     const suf = ld && g.lat ? " " + (ld === "D" ? (g.gen === "f" ? "direita" : "direito") : (g.gen === "f" ? "esquerda" : "esquerdo")) : "";
-    return `<path class="reg" data-seg="${id}" data-lado="${ld}" d="${d}"><title>${g.nome}${suf}</title></path>`;
+    return `<path class="reg${cls ? " " + cls : ""}" data-seg="${id}" data-lado="${ld}" d="${d}"><title>${g.nome}${suf}</title></path>`;
   }
-  function marcasLado() {
-    return `<text class="lado-l" x="46" y="86" text-anchor="middle">D</text><text class="lado-s" x="46" y="99" text-anchor="middle">direito</text>`
-         + `<text class="lado-l" x="274" y="86" text-anchor="middle">E</text><text class="lado-s" x="274" y="99" text-anchor="middle">esquerdo</text>`;
+  const par = (id, a, b, cls) => reg(id, "D", lk(a, b), cls) + reg(id, "E", lkM(a, b), cls);
+  function marcasLado(y) {
+    return `<text class="lado-l" x="34" y="${y}" text-anchor="middle">D</text><text class="lado-s" x="34" y="${y + 13}" text-anchor="middle">direito</text>`
+         + `<text class="lado-l" x="286" y="${y}" text-anchor="middle">E</text><text class="lado-s" x="286" y="${y + 13}" text-anchor="middle">esquerdo</text>`;
   }
-  function svgFrente() {
-    let s = `<svg viewBox="0 0 320 668" role="group" aria-label="Corpo humano, vista anterior">`;
-    s += `<g class="ctx">${CABECA}${TRONCO}</g>` + marcasLado();
-    s += reg("cervical", "", cap(160, 76, 11, 104, 14, 6));
-    s += reg("torax", "", cap(160, 110, 29, 210, 26, 16));
-    s += reg("pelve", "", cap(160, 258, 26, 302, 24, 14));
-    for (const [id, cx, y1, w1, y2, w2, r] of MEMBROS) {
-      s += reg(id, "D", cap(cx, y1, w1, y2, w2, r));
-      s += reg(id, "E", cap(M(cx), y1, w1, y2, w2, r));
+
+  /* medidas do corpo, lado direito do paciente */
+  const CORPO = {
+    ombro:     [[115, 115, 21], [121, 147, 18]],
+    braco:     [[121, 149, 18], [103, 205, 14]],
+    cotovelo:  [[102, 207, 14], [100, 225, 14]],
+    antebraco: [[99, 227, 13], [88, 289, 11]],
+    punho:     [[88, 291, 11], [86, 305, 11]],
+    mao:       [[86, 308, 12], [80, 345, 14]],
+    quadril:   [[137, 279, 21], [134, 310, 19]],
+    coxa:      [[134, 312, 19], [126, 411, 16]],
+    joelho:    [[126, 413, 17], [125, 437, 17]],
+    perna:     [[125, 440, 16], [121, 529, 12]],
+    tornozelo: [[121, 531, 12], [121, 548, 12]],
+    pe:        [[121, 552, 12], [113, 591, 16]],
+  };
+  const ORDEM_MEMBRO = ["ombro","braco","cotovelo","antebraco","punho","mao","quadril","coxa","joelho","perna","tornozelo","pe"];
+  // As articulações são curtas e ficam encostadas nos ossos longos. Se forem
+  // desenhadas antes, o osso longo rouba o toque; por isso vêm por último.
+  const JUNTAS = ["ombro", "cotovelo", "punho", "quadril", "joelho", "tornozelo"];
+  const ORDEM_TOQUE = ORDEM_MEMBRO.filter(id => !JUNTAS.includes(id)).concat(JUNTAS);
+  const CABECA = elipse(160, 44, 25, 31);
+  const PESCOCO = lk([160, 70, 13], [160, 98, 17]);
+  const TORAX = lk([160, 106, 40], [160, 190, 32]);
+  const ABDOME = lk([160, 192, 32], [160, 246, 28]);
+  const PELVE = lk([160, 248, 31], [160, 288, 28]);
+
+  /* A silhueta é UM caminho só: a união das partes, sem traço interno, para o
+     corpo não parecer um empilhamento de peças. As regiões vêm por cima como
+     áreas de toque, com divisão discreta. */
+  function corpoSVG(frente) {
+    const membros = ORDEM_MEMBRO.map(id => lk(CORPO[id][0], CORPO[id][1]) + lkM(CORPO[id][0], CORPO[id][1]));
+    const silhueta = [CABECA, PESCOCO, TORAX, ABDOME, PELVE].concat(membros).join("");
+    let s = `<svg viewBox="0 0 320 626" role="group" aria-label="Corpo humano, vista ${frente ? "anterior" : "posterior"}">`;
+    s += `<path class="silhueta" d="${silhueta}"/>`;
+    s += marcasLado(96);
+    s += `<g class="hits">`;
+    if (frente) {
+      s += reg("cervical", "", lk([160, 70, 12], [160, 96, 14]));
+      s += reg("torax", "", lk([160, 112, 32], [160, 186, 27]));
+      s += reg("pelve", "", lk([160, 252, 27], [160, 286, 25]));
+    } else {
+      s += reg("cervical", "", lk([160, 70, 12], [160, 98, 14]));
+      s += reg("toracica", "", lk([160, 112, 17], [160, 188, 17]));
+      s += reg("lombar", "", lk([160, 194, 18], [160, 244, 18]));
+      s += reg("pelve", "", lk([160, 252, 27], [160, 286, 25]));
     }
-    return s + `</svg>`;
+    if (frente) for (const id of ORDEM_TOQUE) s += par(id, CORPO[id][0], CORPO[id][1]);
+    return s + `</g></svg>`;
   }
-  function svgVerso() {
-    let s = `<svg viewBox="0 0 320 668" role="group" aria-label="Corpo humano, vista posterior">`;
-    s += `<g class="ctx">${CABECA}${PESCOCO}${TRONCO}`;
-    for (const [id, cx, y1, w1, y2, w2, r] of MEMBROS)
-      s += `<path d="${cap(cx,y1,w1,y2,w2,r)}"/><path d="${cap(M(cx),y1,w1,y2,w2,r)}"/>`;
-    s += `</g>` + marcasLado();
-    s += reg("cervical", "", cap(160, 78, 12, 106, 13, 6));
-    s += reg("toracica", "", cap(160, 110, 14, 200, 14, 8));
-    s += reg("lombar", "", cap(160, 204, 15, 262, 15, 8));
-    s += reg("pelve", "", cap(160, 266, 26, 306, 24, 14));
-    return s + `</svg>`;
+
+  /* ---------- mãos e pés ampliados ---------- */
+  // Mão direita pelo dorso: em posição anatômica o polegar é lateral, longe da
+  // linha média. No pé, o hálux é medial — por isso os dois não são espelhos.
+  const PALMA = [[95, 268, 40], [99, 338, 34]];
+  const DEDOS_MAO = [
+    ["mao1", [62, 318, 12], [28, 262, 10]],
+    ["mao2", [70, 258, 11], [63, 172, 9]],
+    ["mao3", [95, 250, 11], [93, 152, 9]],
+    ["mao4", [119, 256, 11], [122, 170, 9]],
+    ["mao5", [140, 270, 10], [147, 202, 8]],
+  ];
+  const DORSO_PE = [[92, 276, 36], [106, 352, 24]];
+  const DEDOS_PE = [
+    ["pe1", [120, 252, 15], [123, 212, 13]],
+    ["pe2", [97, 248, 11], [97, 212, 10]],
+    ["pe3", [79, 252, 10], [77, 220, 9]],
+    ["pe4", [63, 258, 9], [60, 230, 8]],
+    ["pe5", [49, 268, 9], [44, 244, 7]],
+  ];
+
+  function detalheSVG(qual) {
+    const mao = qual === "maos";
+    const dedos = mao ? DEDOS_MAO : DEDOS_PE;
+    const base = mao ? PALMA : DORSO_PE;
+    const baseId = mao ? "mao" : "pe";
+    const partes = [lk(base[0], base[1]), lkM(base[0], base[1])];
+    for (const [, a, b] of dedos) { partes.push(lk(a, b)); partes.push(lkM(a, b)); }
+    const silhueta = partes.join("");
+    // recorta bem em volta das mãos ou dos pés: nada de vazio no painel
+    const caixa = mao ? "0 132 320 252" : "0 178 320 210";
+    let s = `<svg viewBox="${caixa}" role="group" aria-label="${mao ? "Mãos" : "Pés"}, vista dorsal">`;
+    s += `<path class="silhueta" d="${silhueta}"/>`;
+    s += marcasLado(mao ? 160 : 200) + `<g class="hits">`;
+    s += reg(baseId, "D", lk(base[0], base[1])) + reg(baseId, "E", lkM(base[0], base[1]));
+    for (const [id, a, b] of dedos) s += reg(id, "D", lk(a, b), "dedo") + reg(id, "E", lkM(a, b), "dedo");
+    return s + `</g></svg>`;
   }
 
   /* ---------- painel 1 ---------- */
@@ -305,6 +414,7 @@
   }
   function abrirModelo(secId, tplId) {
     tplSel = tplId;
+    aplicarPadroes(tplAtual());
     estado.usage[tplId] = (estado.usage[tplId] || 0) + 1;
     estado.recent = [tplId, ...estado.recent.filter(i => i !== tplId)].slice(0, 10);
     abaAberta = null; agendarSalvar(); fecharMenu(); pintaNav(); pintaTudo();
@@ -313,14 +423,18 @@
   /* ---------- painel 2 ---------- */
   function pintaCorpo() {
     const t = tplAtual();
-    const mostra = Boolean(t) && usaSeg(t);
+    const mostra = mostraCorpo(t);
     $("app").classList.toggle("sem-corpo", !mostra);
     if (!mostra) return;
-    $("palco").innerHTML = vista === "frente" ? svgFrente() : svgVerso();
-    $("vista").textContent = vista === "frente" ? "Frente" : "Verso";
-    $("dica").textContent = "Toque no fundo para ver o " + (vista === "frente" ? "verso" : "frente") + ".";
+    const det = vista === "maos" || vista === "pes";
+    $("palco").innerHTML = det ? detalheSVG(vista) : corpoSVG(vista === "frente");
+    $("vista").textContent = vista === "maos" ? "Mãos" : vista === "pes" ? "Pés"
+                           : vista === "frente" ? "Frente" : "Verso";
+    document.querySelectorAll("#vistas button").forEach(b => {
+      const alvo = b.dataset.vista;
+      b.setAttribute("aria-pressed", String(alvo === "corpo" ? !det : alvo === vista));
+    });
     const m = usaMec(t);
-    $("mecwrap").hidden = !m;
     if (m && !$("mec").options.length) {
       const s = $("mec");
       s.append(new Option("— escolha o mecanismo —", ""));
@@ -331,6 +445,8 @@
     marca();
   }
   function marca() {
+    const t = tplAtual(), fx = fixoDe(t);
+    $("palco").classList.toggle("fixo", Boolean(fx));
     document.querySelectorAll(".reg").forEach(p => {
       const mesmo = p.dataset.seg === seg;
       const ok = !SEG[p.dataset.seg].lat || bilateral || !lado || p.dataset.lado === lado || p.dataset.lado === "";
@@ -339,14 +455,36 @@
     const n = nomeSeg();
     $("sel").innerHTML = n ? `Selecionado: <b>${esc(n.toLowerCase())}</b>` : "Nenhum segmento selecionado.";
     // Coluna, pelve e tórax não têm lado: a opção bilateral não faz sentido.
-    $("bilat").hidden = !(seg && SEG[seg] && SEG[seg].lat);
+    $("bilat").hidden = Boolean(fx) || !temLado(seg);
     $("bilat").setAttribute("aria-pressed", String(bilateral));
+    $("mecwrap").hidden = Boolean(fx) || !usaMec(t);
+    if (fx) {
+      $("dica").textContent = "Este modelo já é deste lado. Para trocar, use o modelo do outro lado.";
+    } else if (temLado(seg) && !lado && !bilateral) {
+      $("dica").textContent = "Toque no lado acometido — direito à esquerda de quem olha.";
+    } else {
+      $("dica").textContent = "Toque no fundo para ver o " + (vista === "frente" ? "verso" : "frente") + ".";
+    }
   }
   $("palco").addEventListener("click", e => {
     const p = e.target.closest(".reg");
-    if (!p) { vista = vista === "frente" ? "verso" : "frente"; pintaCorpo(); return; }
-    seg = p.dataset.seg; lado = p.dataset.lado || null;
+    if (!p) {
+      // No corpo, o fundo alterna frente e verso. Ampliado, o fundo volta ao corpo.
+      vista = vista === "frente" ? "verso" : vista === "verso" ? "frente" : "frente";
+      pintaCorpo(); return;
+    }
+    if (fixoDe(tplAtual())) { aviso("Este modelo já é de um lado definido."); return; }
+    seg = p.dataset.seg; lado = p.dataset.lado || null; bilateral = false;
+    // Tocar na mão ou no pé no corpo já amplia: o dedo fica a um toque.
+    const d = DETALHE[seg];
+    if (d && vista !== d) { vista = d; pintaCorpo(); pintaTexto(); return; }
     marca(); pintaTexto();
+  });
+  $("vistas").addEventListener("click", e => {
+    const b = e.target.closest("button[data-vista]");
+    if (!b) return;
+    vista = b.dataset.vista === "corpo" ? "frente" : b.dataset.vista;
+    pintaCorpo();
   });
   $("bilat").addEventListener("click", e => {
     bilateral = !bilateral; e.currentTarget.setAttribute("aria-pressed", String(bilateral));
@@ -372,13 +510,17 @@
     $("nome").textContent = t.title;
     $("btVars").hidden = false;
     $("btRestaurar").hidden = !doSeed(t.id);
-    if (usaSeg(t) && !seg) {
+    if (usaSeg(t) && !seg && !fixoDe(t)) {
       docs.innerHTML = `<div class="passo"><div class="num">2</div><p>Toque no <strong>segmento acometido</strong>. O texto aparece aqui preenchido.</p></div>`;
       return;
     }
     docs.replaceChildren();
-    const faltaMec = usaMec(t) && !mecanismo && temVar(t);
-    if (faltaMec) {
+    if (usaSeg(t) && temLado(seg) && !lado && !bilateral && temVar(t)) {
+      const a = document.createElement("div"); a.className = "aviso";
+      a.textContent = "Falta o lado — toque no " + SEG[seg].nome + " direito ou esquerdo no mapa.";
+      docs.append(a);
+    }
+    if (usaMec(t) && !mecanismo && temVar(t)) {
       const a = document.createElement("div"); a.className = "aviso";
       a.textContent = "Falta escolher o mecanismo de trauma — ele aparece marcado no texto até ser definido.";
       docs.append(a);

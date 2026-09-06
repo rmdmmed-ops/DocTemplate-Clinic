@@ -88,9 +88,10 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .vista{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--blue);background:var(--marca);border-radius:999px;padding:4px 10px}
 .palco{position:relative;flex:1;min-height:0;display:grid;place-items:center;padding:10px;cursor:pointer}
 .palco svg{max-height:100%;max-width:100%;height:auto;display:block}
-.reg{fill:var(--pele);stroke:var(--pele-l);stroke-width:1.4;stroke-linejoin:round;cursor:pointer;transition:fill .13s}
-.reg:hover{fill:var(--pele-h)}
-.reg.sel{fill:var(--pele-s);stroke:var(--pele-s)}
+/* o contorno vem de uma sombra: traçar o caminho mostraria as divisões
+   internas da união e o corpo voltaria a parecer peças empilhadas */
+.silhueta{fill:var(--pele);stroke:none;filter:drop-shadow(0 0 .9px var(--pele-l)) drop-shadow(0 1px 1px rgba(13,32,51,.10))}
+.hits .reg{fill:transparent;stroke:var(--pele-l);stroke-width:.9;stroke-linejoin:round;opacity:.75;cursor:pointer;transition:fill .13s,opacity .13s}
 .ctx{fill:var(--pele-ctx);stroke:var(--pele-l);stroke-width:1.3;stroke-linejoin:round;pointer-events:none}
 .lado-l{fill:var(--muted);font:700 12px system-ui,sans-serif;pointer-events:none}
 .lado-s{fill:var(--muted);opacity:.7;font:400 9px system-ui,sans-serif;pointer-events:none}
@@ -184,3 +185,22 @@ button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-vis
 .anterior{display:block;text-align:center;font-size:10px;letter-spacing:.4px;
   color:var(--side-mut);text-decoration:none;padding:6px 0 0}
 .anterior:hover{color:#c8d6e0;text-decoration:underline}
+
+/* modelo que já é de um lado: o mapa informa, não decide */
+
+/* alternar corpo, mãos e pés */
+.vistas{display:flex;gap:6px;padding:0 16px 10px}
+.vistas button{flex:1;min-height:34px;border:1px solid var(--line);border-radius:8px;background:var(--surface);
+  color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.4px}
+.vistas button[aria-pressed="true"]{background:var(--marca);border-color:var(--blue);color:var(--blue)}
+.vistas button:hover{color:var(--ink)}
+.palco.fixo ~ .vistas button{opacity:.55}
+
+/* dedos: alvo de toque menor, precisa de contorno mais nítido */
+.hits .reg.dedo{stroke-width:1}
+
+.hits .reg:hover{fill:var(--marca);opacity:1}
+.hits .reg.sel{fill:var(--blue);opacity:1;stroke:var(--blue)}
+.palco.fixo .hits .reg{cursor:default}
+.palco.fixo .hits .reg:hover{fill:transparent}
+.palco.fixo .hits .reg.sel{fill:var(--blue)}

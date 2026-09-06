@@ -1,8 +1,37 @@
-# DOC TEMPLATE ORTOPEDIA – 4.0 (VERSÃO ATUAL)
+# DOC TEMPLATE ORTOPEDIA – 4.1 (VERSÃO ATUAL)
 
 Banco de modelos clínicos ortopédicos que funciona como roteiro e checklist no
 atendimento: escolher o modelo, marcar o segmento no mapa do corpo e copiar o
 texto já concordado para o prontuário.
+
+## Novidades da 4.1 (06/09/2026) — o mapa passa a valer para valer
+
+A 4.0 tinha um defeito de origem: só **6 dos 244 modelos** tinham texto em
+padrão, então em quase todo modelo o mapa ficava inerte e o texto não mudava.
+
+- **153 modelos ativam o mapa** (eram 5). Em **31** o mapa reescreve o texto;
+  nos outros **127**, cujo título já traz o lado (TC — COTOVELO DIREITO), o mapa
+  marca a região e explica que aquele modelo é daquele lado.
+- **Segmento pré-selecionado.** DOR NO COTOVELO já abre com o cotovelo marcado;
+  falta só o lado, e o app diz isso em vez de deixar o texto pela metade.
+- **O lado acompanha o paciente.** Escolhido o lado direito, ele permanece ao
+  trocar de modelo — é o mesmo paciente.
+- **Regra do esqueleto apendicular.** Segmento com lado pede lado; coluna,
+  pelve e tórax não perguntam.
+- **Dedos.** Mãos e pés ampliados, com polegar e 2º a 5º quirodáctilos, hálux e
+  2º a 5º pododáctilos: "FRATURA DO 4º QUIRODÁCTILO DIREITO", "CONTUSÃO DO
+  POLEGAR ESQUERDO". Tocar na mão ou no pé no corpo já amplia.
+- **Avatar redesenhado.** O corpo virou uma silhueta única em vez de um
+  empilhamento de cápsulas, e as articulações recebem o toque em vez de o osso
+  longo roubar o clique.
+
+### Correção de migração (a mais importante)
+
+`doUsuario()` comparava o modelo guardado com o seed **novo**. Como qualquer
+melhoria de texto cria diferença, os 244 modelos passavam por "editados pelo
+usuário" e **nenhum texto novo chegava a quem já usava o app**. Agora a prova de
+autoria é o campo `modified`, gravado em toda edição desde a 3.1: quem editou
+mantém o texto dele; quem não editou recebe a melhoria.
 
 ## Novidades da 4.0 (06/09/2026) — segmento e mecanismo de trauma
 
