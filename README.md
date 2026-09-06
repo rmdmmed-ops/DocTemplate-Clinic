@@ -1,10 +1,68 @@
-# DOC TEMPLATE ORTOPEDIA – 3.2 (VERSÃO ATUAL)
+# DOC TEMPLATE ORTOPEDIA – 4.0 (VERSÃO ATUAL)
 
-Versão do **DocTemplate Clínico V47**, publicada originalmente no site da OpenAI em
-19/08/2026 e adaptada para funcionar no GitHub Pages.
+Banco de modelos clínicos ortopédicos que funciona como roteiro e checklist no
+atendimento: escolher o modelo, marcar o segmento no mapa do corpo e copiar o
+texto já concordado para o prontuário.
 
-Inclui busca global, favoritos, recentes, modelos editáveis, criação de subabas,
-caixas de texto, cópia e armazenamento local no navegador.
+## Novidades da 4.0 (06/09/2026) — segmento e mecanismo de trauma
+
+- **Três painéis.** Menu (módulos e subabas) · corpo humano · texto.
+- **Mapa anatômico.** 17 segmentos, frente e verso, lado direito e esquerdo pela
+  convenção anatômica (direito do paciente à esquerda de quem olha). A escolha
+  do lado só aparece quando o segmento tem lado — coluna cervical não pergunta.
+- **Mecanismo de trauma** como segundo eixo, com lista pronta e campo livre.
+- **Textos em padrões.** Onde o texto dizia "SEGMENTO ACOMETIDO" como
+  preenchimento, agora há variáveis que concordam em gênero: `{{SEG}}`,
+  `{{NO_SEG}}`, `{{DO_SEG}}`, `{{AO_SEG}}`, `{{APOS_MEC}}` — "NO JOELHO
+  DIREITO", "NA MÃO DIREITA", "À MÃO ESQUERDA".
+- **Botão "+ variável".** Converte qualquer outro modelo no uso diário, sem
+  depender de alterar o código.
+- **Aba ativa.** O módulo aberto sobe para o topo com busca própria.
+
+Os **244 modelos foram mantidos**. A conversão foi conservadora, um a um:
+6 modelos alterados, 10 substituições, 239 intactos. As 92 ocorrências de
+"SEGMENTO ACOMETIDO" que são **rótulo de campo** (fisioterapia, acupuntura) não
+foram tocadas: convertê-las produziria "COLUNA CERVICAL: COLUNA CERVICAL".
+
+## Seus dados vieram junto
+
+Na primeira abertura, a 4.0 lê a chave da 3.2 (`doctemplate-ortopedia:3.0`) e
+mescla: edições, modelos criados, subabas, favoritos e recentes atravessam.
+**A chave da 3.2 nunca é apagada** — é a rede de segurança.
+
+Onde você já tinha editado um dos 6 modelos convertidos, a **sua** versão vence
+e o padrão novo não entra. É o comportamento correto: a edição é sua.
+
+## Rota de volta
+
+A 3.2 continua publicada em **`/3.2/`**, com link no rodapé da barra lateral, e
+fica no cache offline junto com a 4.0. Uma rota de volta que só funciona com
+internet não serviria de nada num plantão.
+
+## Como instalar no celular
+
+- **iPhone (Safari):** abrir o site → Compartilhar → "Adicionar à Tela de Início".
+- **Android (Chrome):** menu ⋮ → "Instalar app".
+
+Instalado na tela inicial, o app usa um armazenamento próprio, que não é varrido
+pela limpeza automática que o Safari faz em sites não visitados há 7 dias.
+
+## Como publicar conteúdo novo
+
+1. Edite o `data.js` (mantenha os `id`s existentes).
+2. Aumente `"version"` no topo do `data.js` em 1.
+3. Aumente os `?v=N` no `index.html`.
+4. No `sw.js`, atualize `ASSETS` com os mesmos `?v=N` **e** mude o nome do cache
+   em `CACHE` (ex.: `doctemplate-4.0.0` → `doctemplate-4.0.1`).
+5. Faça o commit.
+
+O passo 4 é o que mais se esquece: sem mudar `CACHE`, quem instalou o app
+continua vendo a versão antiga para sempre.
+
+Não altere `CHAVE` em `app.js`: mudar a chave foi o que deixou órfãos os dados
+da V47.
+
+## Histórico
 
 ## Novidades da 3.2 (06/09/2026) — funciona sem internet
 
@@ -42,22 +100,6 @@ pela limpeza automática de dados que o Safari faz em sites não visitados há 7
 - **Títulos padronizados.** Acentos e travessão único nos 244 modelos (só títulos;
   o conteúdo das caixas não mudou).
 - **CSS limpo.** Removidos o `@import "tailwindcss"` (gerava 404) e 107 regras sem uso.
-
-## Como publicar conteúdo novo
-
-1. Edite o `data.js` (adicione ou altere modelos, mantendo os `id`s existentes).
-2. Aumente `"version"` no topo do `data.js` em 1.
-3. Aumente os `?v=N` no `index.html` (styles.css, data.js, app.js).
-4. No `sw.js`, atualize a lista `ASSETS` com os mesmos `?v=N` **e** mude o nome do
-   cache em `CACHE` (ex.: `doctemplate-3.2.0` → `doctemplate-3.2.1`).
-5. Faça o commit. Quem já usa o app recebe o aviso de nova versão e, ao tocar,
-   recebe os modelos novos sem perder as edições.
-
-O passo 4 é o que mais se esquece: sem mudar `CACHE`, quem instalou o app continua
-vendo a versão antiga para sempre.
-
-Não altere `STORAGE_KEY` em `app.js`: mudar a chave foi o que deixou órfãos os dados
-da V47.
 
 ## Versão anterior preservada
 

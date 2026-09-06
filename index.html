@@ -1,153 +1,126 @@
 <!doctype html>
 <html lang="pt-BR">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#0d2033" />
-    <meta name="description" content="DocTemplate Ortopedia 3.0 — modelos clínicos editáveis para uso médico." />
-    <title>DocTemplate Ortopedia 3.2</title>
-    <link rel="manifest" href="manifest.webmanifest" />
-    <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png" />
-    <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
-    <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="DocTemplate" />
-    <link rel="stylesheet" href="styles.css?v=5" />
-  </head>
-  <body>
-    <main class="app-shell">
-      <aside class="sidebar" id="sidebar">
-        <div class="brand">
-          <div class="brand-mark">+</div>
-          <div><strong>DocTemplate</strong><span>ORTOPEDIA · 3.2</span></div>
-          <button class="close-nav" id="closeNav" aria-label="Fechar menu">×</button>
-        </div>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0d2033" />
+<meta name="description" content="DocTemplate Ortopedia 4.0 — modelos clínicos com mapa anatômico." />
+<title>DocTemplate Ortopedia 4.0</title>
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png" />
+<link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DocTemplate" />
+<link rel="stylesheet" href="styles.css?v=6" />
+</head>
+<body>
+<div class="app" id="app">
 
-        <div class="sidebar-search-area">
-          <div class="search-wrap" id="searchWrap">
-            <span aria-hidden="true">⌕</span>
-            <input id="globalSearch" type="search" placeholder="Buscar em todos os módulos..." aria-label="Buscar em todos os módulos" autocomplete="off" />
-            <kbd>Ctrl&nbsp;K</kbd>
-          </div>
-          <section class="search-panel" id="searchPanel" hidden aria-label="Resultados da pesquisa"></section>
-        </div>
+  <section class="col c1" id="c1">
+    <div class="brand">
+      <div class="mk">+</div>
+      <div><strong>DocTemplate</strong><span>ORTOPEDIA · 4.0</span></div>
+      <button class="fecha-menu" id="fechaMenu" aria-label="Fechar menu">×</button>
+    </div>
+    <div class="gsearch">
+      <span class="ic" aria-hidden="true">⌕</span>
+      <input id="gs" type="search" placeholder="Buscar em todos os módulos…" aria-label="Buscar em todos os módulos" autocomplete="off" />
+      <kbd>Ctrl K</kbd>
+    </div>
+    <nav class="nav" id="nav" aria-label="Módulos clínicos"></nav>
+    <div class="rodape">
+      <div class="status"><span class="pt" id="pt"></span><span id="salvo">Salvo neste navegador</span></div>
+      <div class="acoes">
+        <button id="btExportar" title="Baixa um arquivo .json com seus modelos e edições">⇩ Exportar</button>
+        <button id="btImportar" title="Lê um arquivo .json exportado antes">⇧ Importar</button>
+        <input id="arquivo" type="file" accept=".json,application/json" hidden />
+      </div>
+      <a class="anterior" href="3.2/">Abrir a versão 3.2 (anterior)</a>
+    </div>
+  </section>
 
-        <nav class="nav-scroll" id="navigation" aria-label="Módulos clínicos"></nav>
-        <div class="sidebar-foot">
-          <div class="sidebar-foot-status"><span class="status-dot"></span> Salvo neste navegador</div>
-          <div class="sidebar-foot-actions">
-            <button id="exportButton" title="Baixa um arquivo .json com todos os seus modelos e edições">⇩ Exportar</button>
-            <button id="importButton" title="Lê um arquivo .json exportado em outro computador">⇧ Importar</button>
-            <input id="importFile" type="file" accept=".json,application/json" hidden />
-          </div>
-        </div>
-      </aside>
+  <section class="col c2" id="c2">
+    <div class="cab">
+      <h2>Segmento</h2>
+      <span class="vista" id="vista">Frente</span>
+    </div>
+    <div class="palco" id="palco"></div>
+    <div class="pe2">
+      <div class="sel" id="sel"></div>
+      <button class="bilat" id="bilat" aria-pressed="false" hidden><span class="bx" aria-hidden="true"></span> Bilateral (direito e esquerdo)</button>
+      <div class="mecwrap" id="mecwrap" hidden>
+        <label for="mec">Mecanismo de trauma</label>
+        <select id="mec"></select>
+        <input id="mecLivre" type="text" placeholder="Descreva o mecanismo" hidden aria-label="Mecanismo de trauma" />
+      </div>
+      <p class="dica" id="dica"></p>
+    </div>
+  </section>
 
-      <section class="workspace">
-        <button class="menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
-        <div class="content-area">
-          <div class="page-version">DOC TEMPLATE ORTOPEDIA – 3.2 <b>(VERSÃO ATUAL)</b></div>
-
-          <section class="blank-panel welcome-panel" id="welcomePanel" aria-label="Boas-vindas">
-            <div class="welcome-content">
-              <span class="welcome-symbol" aria-hidden="true">✦</span>
-              <p class="welcome-kicker">DOCTEMPLATE CLÍNICO</p>
-              <h1 id="welcomeTitle">Olá, Dr. Robson.</h1>
-              <p class="welcome-message" id="welcomeMessage">Um atendimento de cada vez, com atenção, clareza e humanidade.</p>
-              <span class="welcome-hint">Selecione uma opção no menu para começar.</span>
-            </div>
-          </section>
-
-          <section id="editorView" hidden>
-            <div class="heading-row">
-              <div>
-                <span class="eyebrow" id="sectionLabel"></span>
-                <h1><textarea id="templateTitle" rows="1" aria-label="Nome do modelo"></textarea></h1>
-                <p id="templateDescription"></p>
-              </div>
-              <button class="favorite-heading" id="favoriteButton" aria-label="Favoritar modelo" title="Favoritar">☆</button>
-            </div>
-
-            <article class="document-card">
-              <div class="document-toolbar">
-                <span id="documentLabel">PRONTUÁRIO MÉDICO</span>
-                <div class="toolbar-actions"><button id="copyAllButton">COPIAR TUDO</button></div>
-              </div>
-              <div class="document-body" id="blockList"></div>
-              <div class="edit-help"><strong>Edição:</strong> tudo que você digita é salvo automaticamente neste navegador. Use <b>Exportar</b> para levar seus modelos a outro computador. Evite dados identificáveis de pacientes em computadores compartilhados.</div>
-              <div class="bottom-save-actions">
-                <span class="saved-status" id="savedStatus">● SALVO NESTE NAVEGADOR</span>
-                <button class="options-button" id="resetButton">RESTAURAR ORIGINAL</button>
-                <span class="bottom-spacer"></span>
-                <button class="secondary-action" id="addBlockButton">＋ NOVA CAIXA</button>
-                <button class="danger-action" id="deleteTemplateButton">EXCLUIR SUBABA</button>
-              </div>
-            </article>
-          </section>
-        </div>
-      </section>
-    </main>
-
-    <button class="backdrop" id="backdrop" aria-label="Fechar menu"></button>
-    <div class="toast" id="toast" role="status" aria-live="polite"></div>
-
-    <div class="modal-backdrop" id="newTemplateModal" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="newTemplateHeading">
-        <span class="modal-icon">+</span>
-        <h2 id="newTemplateHeading">Nova subaba</h2>
-        <p id="newTemplateDescription">Crie um novo modelo dentro do módulo selecionado.</p>
-        <label>Nome<input id="newTemplateName" maxlength="100" placeholder="DIGITE O NOME" /></label>
-        <div class="modal-actions"><button data-close-modal>Cancelar</button><button class="primary-button" id="confirmNewTemplate">Criar subaba</button></div>
+  <section class="col c3" id="c3">
+    <div class="cab3">
+      <div class="tit">
+        <div class="olho" id="olho">—</div>
+        <h2 id="nome">Selecione um modelo</h2>
+      </div>
+      <div class="acoes3">
+        <button class="opt" id="btVars" hidden title="Inserir variável no texto">＋ variável</button>
+        <button class="opt" id="btRestaurar" hidden>Restaurar original</button>
+        <button class="copiar" id="btCopiar" hidden>COPIAR TUDO</button>
       </div>
     </div>
+    <div class="docs" id="docs"></div>
+  </section>
 
-    <div class="modal-backdrop" id="legacyModal" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="legacyHeading">
-        <span class="modal-icon">↻</span>
-        <h2 id="legacyHeading">Encontrei dados da versão anterior</h2>
-        <p id="legacyCount"></p>
-        <p>Posso trazê-los para esta versão. Modelos que você editou ou criou na V47 serão mesclados; nada do que já está aqui é apagado.</p>
-        <div class="modal-actions"><button id="legacySkip">Agora não</button><button class="primary-button" id="legacyImport">Importar da V47</button></div>
-      </div>
+  <button class="menu-bt" id="menuBt" aria-label="Abrir menu">☰</button>
+  <button class="veu" id="veu" aria-label="Fechar menu"></button>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="modal-fundo" id="modalVars" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="varsTit">
+      <h3 id="varsTit">Inserir variável</h3>
+      <p>Clique para inserir no ponto onde o cursor estava. O aplicativo troca pelo valor escolhido no mapa.</p>
+      <div class="vgrid" id="vgrid"></div>
+      <div class="modal-acoes"><button data-fecha>Fechar</button></div>
     </div>
-
-    <script>
-      // Registra o service worker (funcionamento sem internet) e avisa quando
-      // houver versão nova, em vez de deixar o app congelado numa versão antiga.
-      if ("serviceWorker" in navigator) {
-        window.addEventListener("load", () => {
-          navigator.serviceWorker.register("sw.js").then((registration) => {
-            const offer = (worker) => {
-              const toast = document.getElementById("toast");
-              if (!toast) return;
-              toast.textContent = "Nova versão disponível. Toque para atualizar.";
-              toast.classList.add("visible", "actionable");
-              toast.onclick = () => { worker.postMessage("SKIP_WAITING"); toast.textContent = "Atualizando…"; };
-            };
-            if (registration.waiting) offer(registration.waiting);
-            registration.addEventListener("updatefound", () => {
-              const worker = registration.installing;
-              if (!worker) return;
-              worker.addEventListener("statechange", () => {
-                if (worker.state === "installed" && navigator.serviceWorker.controller) offer(worker);
-              });
-            });
-          }).catch(() => {});
-          // Só recarrega quando é ATUALIZAÇÃO de uma versão já instalada.
-          // Na primeira visita o worker assume o controle e isso não deve
-          // provocar um recarregamento surpresa no meio do plantão.
-          const hadController = Boolean(navigator.serviceWorker.controller);
-          let reloading = false;
-          navigator.serviceWorker.addEventListener("controllerchange", () => {
-            if (!hadController || reloading) return;
-            reloading = true;
-            window.location.reload();
+  </div>
+</div>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").then((registro) => {
+        const oferecer = (worker) => {
+          const toast = document.getElementById("toast");
+          if (!toast) return;
+          toast.textContent = "Nova versão disponível. Toque para atualizar.";
+          toast.classList.add("on", "acao");
+          toast.onclick = () => { worker.postMessage("SKIP_WAITING"); toast.textContent = "Atualizando…"; };
+        };
+        if (registro.waiting) oferecer(registro.waiting);
+        registro.addEventListener("updatefound", () => {
+          const worker = registro.installing;
+          if (!worker) return;
+          worker.addEventListener("statechange", () => {
+            if (worker.state === "installed" && navigator.serviceWorker.controller) oferecer(worker);
           });
         });
-      }
-    </script>
-    <script src="data.js?v=5"></script>
-    <script src="app.js?v=5"></script>
-  </body>
+      }).catch(() => {});
+      // Só recarrega quando é ATUALIZAÇÃO de uma versão já instalada; na primeira
+      // visita o worker assume o controle e isso não pode virar um recarregamento
+      // surpresa no meio do plantão.
+      const tinhaControle = Boolean(navigator.serviceWorker.controller);
+      let recarregando = false;
+      navigator.serviceWorker.addEventListener("controllerchange", () => {
+        if (!tinhaControle || recarregando) return;
+        recarregando = true;
+        window.location.reload();
+      });
+    });
+  }
+</script>
+<script src="data.js?v=6"></script>
+<script src="app.js?v=6"></script>
+</body>
 </html>

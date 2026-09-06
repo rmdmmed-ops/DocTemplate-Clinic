@@ -1,7 +1,7 @@
 {
   "name": "DocTemplate Ortopedia",
   "short_name": "DocTemplate",
-  "description": "Modelos clínicos ortopédicos editáveis, prontos para copiar no prontuário. Funciona sem internet.",
+  "description": "Modelos clínicos ortopédicos com mapa anatômico, lateralidade e mecanismo de trauma. Funciona sem internet.",
   "lang": "pt-BR",
   "dir": "ltr",
   "start_url": "./",

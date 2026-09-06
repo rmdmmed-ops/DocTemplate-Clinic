@@ -11,14 +11,21 @@
   Sem isso, quem já instalou continua vendo a versão antiga.
 */
 
-const CACHE = "doctemplate-3.2.0";
+const CACHE = "doctemplate-4.0.0";
 
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=5",
-  "./data.js?v=5",
-  "./app.js?v=5",
+  "./styles.css?v=6",
+  "./data.js?v=6",
+  "./app.js?v=6",
+  // A 3.2 preservada também fica offline: é a rota de volta durante um plantão,
+  // e uma rota de volta que só funciona com internet não serve de nada.
+  "./3.2/",
+  "./3.2/index.html",
+  "./3.2/styles.css?v=5",
+  "./3.2/data.js?v=5",
+  "./3.2/app.js?v=5",
   "./manifest.webmanifest",
   "./icons/icon-192.png",
   "./icons/icon-512.png",
@@ -59,10 +66,13 @@ self.addEventListener("fetch", (event) => {
         try {
           const response = await fetch(request);
           const cache = await caches.open(CACHE);
-          await cache.put("./index.html", response.clone());
+          await cache.put(new URL(request.url).pathname.includes("/3.2/") ? "./3.2/index.html" : "./index.html", response.clone());
           return response;
         } catch (_) {
-          return (await caches.match("./index.html")) || (await caches.match("./")) || Response.error();
+          // devolve a página pedida, não a da raiz: /3.2/ offline tem que abrir a 3.2
+          return (await caches.match(request, { ignoreSearch: true })) ||
+                 (await caches.match("./index.html")) ||
+                 (await caches.match("./")) || Response.error();
         }
       })()
     );

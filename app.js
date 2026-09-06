@@ -1,12 +1,15 @@
 (function () {
   "use strict";
 
-  // A chave NÃO muda entre versões do app: mudar a chave foi o que deixou
-  // órfãos os dados da V47. Migrações acontecem por seed.version (ver migrateState).
-  const STORAGE_KEY = "doctemplate-ortopedia:3.0";
-  const LEGACY_KEY = "doctemplate-clinico:v1"; // versão V47, publicada em 03/09/2026
-  const LEGACY_CHECKED_KEY = "doctemplate-ortopedia:legacy-checked";
-  const AUTOSAVE_DELAY = 600;
+  /* DocTemplate Ortopedia 4.0 — versão principal.
+     A 3.2 continua publicada em /3.2/ como rota de volta, e a chave dela no
+     navegador nunca é apagada. */
+  const CHAVE = "doctemplate-ortopedia:4.0";
+  // Chave da 3.0/3.1/3.2. Quem já usava o app tem as suas edições aqui, e elas
+  // precisam atravessar para a 4.0 na primeira abertura. Nunca apagamos esta
+  // chave: ela é a rede de segurança se for preciso voltar para a 3.2.
+  const CHAVE_ANTERIOR = "doctemplate-ortopedia:3.0";
+  const ATRASO_SALVAR = 600;
 
   const seed = window.DOCTEMPLATE_SEED;
   if (!seed || !Array.isArray(seed.sections)) {
@@ -14,691 +17,490 @@
     return;
   }
 
-  const groups = [
-    { label: "EVOLUÇÕES", ids: ["ps", "ambulatorio", "enfermaria", "internacao"] },
-    { label: "PRESCRIÇÕES", ids: ["prescricoes"] },
-    { label: "EXAMES", ids: ["tc", "rnm", "usg"] },
-    { label: "DOCUMENTOS E DESCRIÇÕES", ids: ["encaminhamentos", "fisioterapia", "acupuntura", "relatorios", "descricoes"] },
+  const GRUPOS = [
+    ["EVOLUÇÕES", ["ps", "ambulatorio", "enfermaria", "internacao"]],
+    ["PRESCRIÇÕES", ["prescricoes"]],
+    ["EXAMES", ["tc", "rnm", "usg"]],
+    ["DOCUMENTOS E DESCRIÇÕES", ["encaminhamentos", "fisioterapia", "acupuntura", "relatorios", "descricoes"]],
   ];
 
-  const workGreetings = [
-    "Que hoje você encontre serenidade nas decisões e propósito em cada cuidado.",
-    "Um atendimento de cada vez, com atenção, clareza e humanidade.",
-    "Que o seu conhecimento alivie dores e renove esperanças ao longo do dia.",
-    "Faça o seu melhor com calma; a excelência também nasce da serenidade.",
-    "Que não faltem sabedoria para decidir e sensibilidade para cuidar.",
-    "Conhecimento orienta as mãos; humanidade dá sentido ao cuidado.",
-    "Que hoje a pressa não seja maior que o cuidado.",
-    "Que a experiência conduza, a prudência proteja e a empatia acompanhe.",
+  const MECANISMOS = ["queda da própria altura","queda de altura","acidente motociclístico",
+    "acidente automobilístico","atropelamento","trauma direto","torção","esmagamento","lesão esportiva"];
+
+  // Vocabulário de segmentos validado no uso real (Agenda Cirúrgica HMTS).
+  const SEG = {};
+  const def = (id, nome, gen, lat) => { SEG[id] = { nome, gen, lat }; };
+  def("cervical","coluna cervical","f",false); def("toracica","coluna torácica","f",false);
+  def("lombar","coluna lombar","f",false); def("pelve","pelve","f",false); def("torax","tórax","m",false);
+  def("ombro","ombro","m",true); def("braco","braço","m",true); def("cotovelo","cotovelo","m",true);
+  def("antebraco","antebraço","m",true); def("punho","punho","m",true); def("mao","mão","f",true);
+  def("quadril","quadril","m",true); def("coxa","coxa","f",true); def("joelho","joelho","m",true);
+  def("perna","perna","f",true); def("tornozelo","tornozelo","m",true); def("pe","pé","m",true);
+
+  const VARIAVEIS = [
+    ["{{SEG}}", "PÉ DIREITO", "o nome do segmento, sem preposição"],
+    ["{{NO_SEG}}", "NO PÉ DIREITO · NA MÃO DIREITA", "com em — concorda com o gênero"],
+    ["{{DO_SEG}}", "DO PÉ DIREITO · DA MÃO DIREITA", "com de — concorda com o gênero"],
+    ["{{AO_SEG}}", "AO PÉ DIREITO · À MÃO DIREITA", "com a — concorda com o gênero"],
+    ["{{APOS_MEC}}", "APÓS QUEDA DE ALTURA", "o mecanismo de trauma escolhido"],
   ];
 
-  const clone = (value) => JSON.parse(JSON.stringify(value));
-  const normalize = (value) => String(value ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const uid = (prefix) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const byId = (id) => document.getElementById(id);
-  const timeLabel = (ts) => new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+  const clone = v => JSON.parse(JSON.stringify(v));
+  const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const uid = p => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const $ = id => document.getElementById(id);
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const hora = ts => new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
 
-  // ---------------------------------------------------------------------------
-  // Estado e migração
-  // ---------------------------------------------------------------------------
-
-  function freshState() {
+  /* ---------- estado e migração (mesma lógica provada na 3.1) ---------- */
+  function novoEstado() {
     return { version: seed.version, sections: clone(seed.sections), favorites: [], recent: [], usage: {}, deleted: [], savedAt: null };
   }
-
-  function seedTemplate(id) {
-    for (const section of seed.sections) {
-      const template = section.templates.find((item) => item.id === id);
-      if (template) return template;
-    }
+  function doSeed(id) {
+    for (const s of seed.sections) { const t = s.templates.find(x => x.id === id); if (t) return t; }
     return null;
   }
-
-  function blocksDiffer(a, b) {
-    return JSON.stringify(a.blocks) !== JSON.stringify(b.blocks);
+  const difere = (a, b) => JSON.stringify(a.blocks) !== JSON.stringify(b.blocks);
+  function doUsuario(t) {
+    const o = doSeed(t.id);
+    if (!o) return true;
+    if (t.modified) return true;
+    return difere(t, o);
   }
-
-  // Um modelo é "do usuário" se foi criado por ele, se foi marcado como modificado
-  // ou — para estados antigos sem a marca — se o conteúdo difere do seed atual.
-  function isUserOwned(template) {
-    const original = seedTemplate(template.id);
-    if (!original) return true;
-    if (template.modified) return true;
-    return blocksDiffer(template, original);
-  }
-
-  // Mescla um estado salvo (de outra versão, de outro aparelho ou da V47) sobre o
-  // seed atual. Regras: modelos novos do seed entram; modelos editados pelo usuário
-  // vencem; subabas criadas pelo usuário sobrevivem; exclusões registradas são
-  // respeitadas; favoritos, recentes e uso são preservados.
-  function migrateState(saved, base = freshState()) {
-    const result = base;
-    const deleted = new Set([...(result.deleted || []), ...(Array.isArray(saved.deleted) ? saved.deleted : [])]);
-    result.deleted = [...deleted];
-
-    (saved.sections || []).forEach((savedSection) => {
-      const target = result.sections.find((section) => section.id === savedSection.id);
-      if (!target) return;
-      (savedSection.templates || []).forEach((template) => {
-        if (!template || !template.id || !Array.isArray(template.blocks)) return;
-        const index = target.templates.findIndex((item) => item.id === template.id);
-        if (index === -1) {
-          if (!deleted.has(template.id) || !seedTemplate(template.id)) target.templates.push(clone(template));
-          return;
-        }
-        if (isUserOwned(template)) {
-          const existing = target.templates[index];
-          // Se o destino já tem uma versão editada pelo usuário (importação sobre
-          // estado vivo), a importada entra ao lado, sem sobrescrever.
-          if (existing.modified && blocksDiffer(existing, template)) {
-            target.templates.push(Object.assign(clone(template), { id: uid(target.id), title: `${template.title} (IMPORTADO)` }));
+  function mesclar(salvo, base = novoEstado()) {
+    const r = base;
+    const apagados = new Set([...(r.deleted || []), ...(Array.isArray(salvo.deleted) ? salvo.deleted : [])]);
+    r.deleted = [...apagados];
+    (salvo.sections || []).forEach(ss => {
+      const alvo = r.sections.find(s => s.id === ss.id);
+      if (!alvo) return;
+      (ss.templates || []).forEach(t => {
+        if (!t || !t.id || !Array.isArray(t.blocks)) return;
+        const i = alvo.templates.findIndex(x => x.id === t.id);
+        if (i === -1) { if (!apagados.has(t.id) || !doSeed(t.id)) alvo.templates.push(clone(t)); return; }
+        if (doUsuario(t)) {
+          const atual = alvo.templates[i];
+          if (atual.modified && difere(atual, t)) {
+            alvo.templates.push(Object.assign(clone(t), { id: uid(alvo.id), title: `${t.title} (IMPORTADO)` }));
           } else {
-            target.templates[index] = Object.assign(clone(template), { modified: template.modified || Date.now() });
+            // o campo usa vem sempre do seed: é estrutura, não conteúdo do usuário
+            alvo.templates[i] = Object.assign(clone(t), { usa: atual.usa || {}, mecanismoPadrao: atual.mecanismoPadrao, modified: t.modified || Date.now() });
           }
         }
       });
     });
+    r.sections.forEach(s => { s.templates = s.templates.filter(t => !apagados.has(t.id) || !doSeed(t.id)); });
+    const conhecidos = new Set(r.sections.flatMap(s => s.templates.map(t => t.id)));
+    r.favorites = [...new Set([...(salvo.favorites || []), ...(r.favorites || [])])].filter(id => conhecidos.has(id));
+    r.recent = [...new Set([...(salvo.recent || []), ...(r.recent || [])])].filter(id => conhecidos.has(id)).slice(0, 10);
+    r.usage = Object.assign({}, r.usage || {}, salvo.usage || {});
+    Object.keys(r.usage).forEach(id => { if (!conhecidos.has(id)) delete r.usage[id]; });
+    r.version = seed.version;
+    return r;
+  }
+  function lerJSON(chave) { try { return JSON.parse(localStorage.getItem(chave)); } catch (_) { return null; } }
+  function carregar() {
+    const s = lerJSON(CHAVE);
+    if (s && Array.isArray(s.sections)) {
+      if (s.version === seed.version) return s;
+      const m = mesclar(s); m.migradoDe = s.version; return m;
+    }
+    // Primeira abertura da 4.0: traz o que existir da 3.2, sem apagar o original.
+    const a = lerJSON(CHAVE_ANTERIOR);
+    if (a && Array.isArray(a.sections)) {
+      const m = mesclar(a);
+      m.migradoDe = a.version;
+      m.vindoDa32 = true;
+      return m;
+    }
+    return novoEstado();
+  }
 
-    result.sections.forEach((section) => {
-      section.templates = section.templates.filter((template) => !deleted.has(template.id) || !seedTemplate(template.id));
+  let estado = carregar();
+  estado.favorites = Array.isArray(estado.favorites) ? estado.favorites : [];
+  estado.recent = Array.isArray(estado.recent) ? estado.recent : [];
+  estado.usage = estado.usage && typeof estado.usage === "object" ? estado.usage : {};
+  estado.deleted = Array.isArray(estado.deleted) ? estado.deleted : [];
+
+  let abaAberta = null, tplSel = null, buscaAba = "";
+  let seg = null, lado = null, bilateral = false, mecanismo = "", vista = "frente";
+  let focarBusca = false, sujo = false, timerSalvar = null, timerToast = null, ultimoFoco = null;
+
+  const tplAtual = () => { for (const s of estado.sections) { const t = s.templates.find(x => x.id === tplSel); if (t) return t; } return null; };
+  const modAtual = () => estado.sections.find(s => s.templates.some(t => t.id === tplSel));
+  const mod = id => estado.sections.find(s => s.id === id);
+  const usaSeg = t => Boolean(t && t.usa && t.usa.segmento);
+  const usaMec = t => Boolean(t && t.usa && t.usa.mecanismo);
+
+  /* ---------- salvamento ---------- */
+  function gravar() { estado.savedAt = Date.now(); localStorage.setItem(CHAVE, JSON.stringify(estado)); }
+  function pintarStatus() {
+    $("salvo").textContent = sujo ? "Salvando…" : (estado.savedAt ? "Salvo às " + hora(estado.savedAt) : "Salvo neste navegador");
+    $("pt").classList.toggle("pend", sujo);
+  }
+  function salvarJa() {
+    clearTimeout(timerSalvar); timerSalvar = null;
+    try { gravar(); sujo = false; } catch (_) { aviso("O navegador bloqueou o armazenamento. Exporte seus modelos."); }
+    pintarStatus();
+  }
+  function agendarSalvar() { sujo = true; pintarStatus(); clearTimeout(timerSalvar); timerSalvar = setTimeout(salvarJa, ATRASO_SALVAR); }
+  window.addEventListener("beforeunload", () => { if (sujo) salvarJa(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && sujo) salvarJa(); });
+  function aviso(msg) {
+    const t = $("toast"); t.textContent = msg; t.classList.add("on");
+    clearTimeout(timerToast); timerToast = setTimeout(() => t.classList.remove("on"), 2600);
+  }
+
+  /* ---------- texto ---------- */
+  function nomeSeg() {
+    if (!seg) return null;
+    const g = SEG[seg]; let n = g.nome;
+    if (g.lat) {
+      if (bilateral) n += g.gen === "f" ? " direita e esquerda" : " direito e esquerdo";
+      else if (lado) n += lado === "D" ? (g.gen === "f" ? " direita" : " direito") : (g.gen === "f" ? " esquerda" : " esquerdo");
+    }
+    return n.toUpperCase();
+  }
+  function preencher(txt) {
+    let r = txt;
+    const n = nomeSeg();
+    if (n) {
+      const g = SEG[seg];
+      const a = g.gen === "f" ? { do: "DA", no: "NA", ao: "À" } : { do: "DO", no: "NO", ao: "AO" };
+      r = r.replace(/\{\{DO_SEG\}\}/g, `${a.do} ${n}`).replace(/\{\{NO_SEG\}\}/g, `${a.no} ${n}`)
+           .replace(/\{\{AO_SEG\}\}/g, `${a.ao} ${n}`).replace(/\{\{SEG\}\}/g, n);
+    }
+    if (mecanismo) r = r.replace(/\{\{APOS_MEC\}\}/g, "APÓS " + mecanismo.toUpperCase());
+    return r;
+  }
+  const temVar = t => t.blocks.some(b => /\{\{[A-Z_]+\}\}/.test(b.content));
+
+  /* ---------- desenho do corpo ---------- */
+  function cap(cx, y1, w1, y2, w2, r) {
+    const l1 = cx - w1, r1 = cx + w1, l2 = cx - w2, r2 = cx + w2;
+    return `M${l1 + r},${y1} L${r1 - r},${y1} Q${r1},${y1} ${r1},${y1 + r} L${r2},${y2 - r} Q${r2},${y2} ${r2 - r},${y2} L${l2 + r},${y2} Q${l2},${y2} ${l2},${y2 - r} L${l1},${y1 + r} Q${l1},${y1} ${l1 + r},${y1} Z`;
+  }
+  const M = x => 320 - x;
+  const MEMBROS = [
+    ["ombro",118,100,25,134,19,15],["braco",112,136,18,214,15,13],["cotovelo",110,216,16,242,15,12],
+    ["antebraco",107,244,15,318,12,11],["punho",105,320,12,338,11,9],["mao",103,340,14,386,11,12],
+    ["quadril",140,300,23,338,21,15],["coxa",139,340,22,442,16,16],["joelho",138,444,17,474,15,13],
+    ["perna",137,476,15,570,11,12],["tornozelo",136,572,11,592,10,8],["pe",135,594,12,630,16,11],
+  ];
+  const CABECA = `<ellipse cx="160" cy="48" rx="26" ry="32"/>`;
+  const PESCOCO = `<path d="${cap(160,76,11,104,15,6)}"/>`;
+  const TRONCO = `<path d="${cap(160,100,36,300,27,20)}"/>`;
+  function reg(id, ld, d) {
+    const g = SEG[id];
+    const suf = ld && g.lat ? " " + (ld === "D" ? (g.gen === "f" ? "direita" : "direito") : (g.gen === "f" ? "esquerda" : "esquerdo")) : "";
+    return `<path class="reg" data-seg="${id}" data-lado="${ld}" d="${d}"><title>${g.nome}${suf}</title></path>`;
+  }
+  function marcasLado() {
+    return `<text class="lado-l" x="46" y="86" text-anchor="middle">D</text><text class="lado-s" x="46" y="99" text-anchor="middle">direito</text>`
+         + `<text class="lado-l" x="274" y="86" text-anchor="middle">E</text><text class="lado-s" x="274" y="99" text-anchor="middle">esquerdo</text>`;
+  }
+  function svgFrente() {
+    let s = `<svg viewBox="0 0 320 668" role="group" aria-label="Corpo humano, vista anterior">`;
+    s += `<g class="ctx">${CABECA}${TRONCO}</g>` + marcasLado();
+    s += reg("cervical", "", cap(160, 76, 11, 104, 14, 6));
+    s += reg("torax", "", cap(160, 110, 29, 210, 26, 16));
+    s += reg("pelve", "", cap(160, 258, 26, 302, 24, 14));
+    for (const [id, cx, y1, w1, y2, w2, r] of MEMBROS) {
+      s += reg(id, "D", cap(cx, y1, w1, y2, w2, r));
+      s += reg(id, "E", cap(M(cx), y1, w1, y2, w2, r));
+    }
+    return s + `</svg>`;
+  }
+  function svgVerso() {
+    let s = `<svg viewBox="0 0 320 668" role="group" aria-label="Corpo humano, vista posterior">`;
+    s += `<g class="ctx">${CABECA}${PESCOCO}${TRONCO}`;
+    for (const [id, cx, y1, w1, y2, w2, r] of MEMBROS)
+      s += `<path d="${cap(cx,y1,w1,y2,w2,r)}"/><path d="${cap(M(cx),y1,w1,y2,w2,r)}"/>`;
+    s += `</g>` + marcasLado();
+    s += reg("cervical", "", cap(160, 78, 12, 106, 13, 6));
+    s += reg("toracica", "", cap(160, 110, 14, 200, 14, 8));
+    s += reg("lombar", "", cap(160, 204, 15, 262, 15, 8));
+    s += reg("pelve", "", cap(160, 266, 26, 306, 24, 14));
+    return s + `</svg>`;
+  }
+
+  /* ---------- painel 1 ---------- */
+  const casa = (t, q) => !q || norm(t.title + " " + t.blocks.map(b => b.title + " " + b.content).join(" ")).includes(norm(q));
+  function ordenados(m) {
+    return [...m.templates].sort((a, b) =>
+      (estado.usage[b.id] || 0) - (estado.usage[a.id] || 0) || a.title.localeCompare(b.title, "pt-BR"));
+  }
+  function pintaNav() {
+    const nav = $("nav"); nav.replaceChildren();
+    const q = $("gs").value.trim();
+    if (q) {
+      const hits = estado.sections.flatMap(s => s.templates.filter(t => casa(t, q)).map(t => ({ s, t })));
+      const h = document.createElement("div"); h.className = "grp";
+      h.textContent = `${hits.length} ${hits.length === 1 ? "RESULTADO" : "RESULTADOS"}`;
+      nav.append(h);
+      const cx = document.createElement("div"); cx.className = "hits";
+      hits.slice(0, 40).forEach(({ s, t }) => {
+        const b = document.createElement("button"); b.className = "hit";
+        b.innerHTML = `${esc(t.title)}<small>${esc(s.label)}</small>`;
+        b.onclick = () => { $("gs").value = ""; abrirModelo(s.id, t.id); };
+        cx.append(b);
+      });
+      if (!hits.length) { const e = document.createElement("div"); e.className = "vazio-l"; e.textContent = "Nenhum resultado."; cx.append(e); }
+      nav.append(cx); return;
+    }
+    if (abaAberta) nav.append(caixaAba(abaAberta));
+    GRUPOS.forEach(([rot, ids]) => {
+      const visiveis = ids.filter(id => mod(id) && id !== abaAberta);
+      if (!visiveis.length) return;
+      const g = document.createElement("div"); g.className = "grp"; g.textContent = rot; nav.append(g);
+      visiveis.forEach(id => {
+        const m = mod(id);
+        const b = document.createElement("button"); b.className = "mod";
+        b.innerHTML = `<span>${esc(m.label.toUpperCase())}</span><b>›</b>`;
+        b.onclick = () => { abaAberta = id; buscaAba = ""; focarBusca = true; pintaNav(); };
+        nav.append(b);
+      });
     });
-
-    const known = new Set(result.sections.flatMap((section) => section.templates.map((template) => template.id)));
-    const merge = (list) => [...new Set([...(list || []), ...(result.favorites || [])])].filter((id) => known.has(id));
-    result.favorites = merge(saved.favorites);
-    result.recent = [...new Set([...(saved.recent || []), ...(result.recent || [])])].filter((id) => known.has(id)).slice(0, 10);
-    result.usage = Object.assign({}, result.usage || {}, saved.usage || {});
-    Object.keys(result.usage).forEach((id) => { if (!known.has(id)) delete result.usage[id]; });
-    result.version = seed.version;
-    return result;
   }
-
-  function readJSON(key) {
-    try { return JSON.parse(localStorage.getItem(key)); } catch (_) { return null; }
-  }
-
-  function loadState() {
-    const saved = readJSON(STORAGE_KEY);
-    if (saved && Array.isArray(saved.sections)) {
-      if (saved.version === seed.version) return saved;
-      const migrated = migrateState(saved);
-      migrated.migratedFrom = saved.version;
-      return migrated;
-    }
-    return freshState();
-  }
-
-  let state = loadState();
-  state.favorites = Array.isArray(state.favorites) ? state.favorites : [];
-  state.recent = Array.isArray(state.recent) ? state.recent : [];
-  state.usage = state.usage && typeof state.usage === "object" ? state.usage : {};
-  state.deleted = Array.isArray(state.deleted) ? state.deleted : [];
-  let activeSectionId = null;
-  let activeTemplateId = null;
-  let expandedIds = new Set();
-  let pendingSectionId = null;
-  let toastTimer;
-  let autosaveTimer = null;
-  let dirty = false;
-
-  const navigation = byId("navigation");
-  const searchInput = byId("globalSearch");
-  const searchPanel = byId("searchPanel");
-  const welcomePanel = byId("welcomePanel");
-  const editorView = byId("editorView");
-  const templateTitle = byId("templateTitle");
-  const blockList = byId("blockList");
-
-  function getSection(id = activeSectionId) {
-    return state.sections.find((section) => section.id === id);
-  }
-
-  function getTemplate(sectionId = activeSectionId, templateId = activeTemplateId) {
-    return getSection(sectionId)?.templates.find((template) => template.id === templateId);
-  }
-
-  function allEntries() {
-    return state.sections.flatMap((section) => section.templates.map((template) => ({ section, template })));
-  }
-
-  // ---------------------------------------------------------------------------
-  // Persistência (autosave)
-  // ---------------------------------------------------------------------------
-
-  function writeStorage() {
-    state.savedAt = Date.now();
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  }
-
-  function renderSavedStatus() {
-    const status = byId("savedStatus");
-    if (!status) return;
-    if (dirty) { status.textContent = "● SALVANDO…"; status.className = "saved-status pending"; return; }
-    status.textContent = state.savedAt ? `● SALVO ÀS ${timeLabel(state.savedAt)}` : "● SALVO NESTE NAVEGADOR";
-    status.className = "saved-status";
-  }
-
-  function flushSave() {
-    clearTimeout(autosaveTimer);
-    autosaveTimer = null;
-    try {
-      writeStorage();
-      dirty = false;
-    } catch (_) {
-      showToast("O navegador bloqueou o armazenamento local. Exporte seus modelos para não perder.");
-    }
-    renderSavedStatus();
-  }
-
-  function scheduleSave() {
-    dirty = true;
-    renderSavedStatus();
-    clearTimeout(autosaveTimer);
-    autosaveTimer = setTimeout(flushSave, AUTOSAVE_DELAY);
-  }
-
-  function persist(message) {
-    flushSave();
-    if (message) showToast(message);
-  }
-
-  function markModified(template) {
-    if (template) template.modified = Date.now();
-    scheduleSave();
-  }
-
-  window.addEventListener("beforeunload", () => { if (dirty) flushSave(); });
-  document.addEventListener("visibilitychange", () => { if (document.hidden && dirty) flushSave(); });
-
-  function showToast(message) {
-    const toast = byId("toast");
-    toast.textContent = message;
-    toast.classList.add("visible");
-    clearTimeout(toastTimer);
-    toastTimer = setTimeout(() => toast.classList.remove("visible"), 2600);
-  }
-
-  // ---------------------------------------------------------------------------
-  // Exportar / importar
-  // ---------------------------------------------------------------------------
-
-  function exportState() {
-    flushSave();
-    const payload = {
-      app: "DocTemplate Ortopedia",
-      format: 1,
-      seedVersion: seed.version,
-      exportedAt: new Date().toISOString(),
-      state: state,
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-");
-    link.href = url;
-    link.download = `doctemplate-ortopedia-${stamp}.json`;
-    document.body.append(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-    showToast("Arquivo exportado. Guarde-o ou envie para outro computador.");
-  }
-
-  function importFromObject(parsed, sourceLabel) {
-    const incoming = parsed && parsed.state && Array.isArray(parsed.state.sections) ? parsed.state
-      : parsed && Array.isArray(parsed.sections) ? parsed : null;
-    if (!incoming) throw new Error("formato");
-    const before = allEntries().length;
-    state = migrateState(incoming, state);
-    persist();
-    renderNavigation();
-    renderEditor();
-    const after = allEntries().length;
-    showToast(`${sourceLabel} importado: ${after - before} modelo(s) novo(s), edições mescladas.`);
-  }
-
-  function importFile(file) {
-    const reader = new FileReader();
-    reader.onload = () => {
-      try {
-        importFromObject(JSON.parse(String(reader.result)), "Arquivo");
-      } catch (_) {
-        showToast("Não reconheci este arquivo. Use um .json exportado pelo DocTemplate.");
+  function caixaAba(id) {
+    const m = mod(id);
+    const box = document.createElement("div"); box.className = "aba";
+    const rot = document.createElement("div"); rot.className = "rot"; rot.textContent = "ABA ATIVA";
+    const nm = document.createElement("div"); nm.className = "nome";
+    const sp = document.createElement("span"); sp.textContent = m.label.toUpperCase();
+    const fx = document.createElement("button"); fx.textContent = "×"; fx.setAttribute("aria-label", "Fechar aba");
+    fx.onclick = () => { abaAberta = null; pintaNav(); };
+    nm.append(sp, fx);
+    const bs = document.createElement("div"); bs.className = "abaBusca";
+    bs.innerHTML = `<span class="ic" aria-hidden="true">⌕</span>`;
+    const inp = document.createElement("input"); inp.type = "search";
+    inp.placeholder = `Pesquisar em ${m.label.toLowerCase()}…`;
+    inp.setAttribute("aria-label", `Pesquisar em ${m.label}`); inp.value = buscaAba;
+    bs.append(inp);
+    const lista = document.createElement("div"); lista.className = "lista";
+    const vazio = document.createElement("div"); vazio.className = "vazio-l";
+    vazio.textContent = "Nada encontrado neste módulo."; vazio.hidden = true;
+    // Todos os modelos ficam no documento; a busca só mostra e esconde.
+    // Redesenhar a cada tecla destrói o campo e faz perder o foco.
+    const bts = ordenados(m).map((t, i) => {
+      const x = document.createElement("button"); x.className = "tpl"; x.textContent = t.title;
+      if ((estado.usage[t.id] || 0) > 0 && i < 3) {
+        const u = document.createElement("span"); u.className = "uso"; u.textContent = "mais usado"; x.append(u);
       }
+      x.dataset.busca = norm(t.title + " " + t.blocks.map(b => b.title + " " + b.content).join(" "));
+      x.setAttribute("aria-current", String(tplSel === t.id));
+      x.onclick = () => abrirModelo(m.id, t.id);
+      lista.append(x); return x;
+    });
+    lista.append(vazio);
+    const filtra = () => {
+      const q = norm(inp.value.trim()); buscaAba = inp.value;
+      let n = 0; bts.forEach(b => { const ok = !q || b.dataset.busca.includes(q); b.hidden = !ok; if (ok) n++; });
+      vazio.hidden = n > 0;
     };
-    reader.readAsText(file);
+    inp.addEventListener("input", filtra); filtra();
+    box.append(rot, nm, bs, lista);
+    if (focarBusca) { focarBusca = false; setTimeout(() => inp.focus(), 0); }
+    return box;
+  }
+  function abrirModelo(secId, tplId) {
+    tplSel = tplId;
+    estado.usage[tplId] = (estado.usage[tplId] || 0) + 1;
+    estado.recent = [tplId, ...estado.recent.filter(i => i !== tplId)].slice(0, 10);
+    abaAberta = null; agendarSalvar(); fecharMenu(); pintaNav(); pintaTudo();
   }
 
-  // ---------------------------------------------------------------------------
-  // Resgate da V47
-  // ---------------------------------------------------------------------------
-
-  function checkLegacy() {
-    if (localStorage.getItem(LEGACY_CHECKED_KEY)) return;
-    const legacy = readJSON(LEGACY_KEY);
-    if (!legacy || !Array.isArray(legacy.sections)) return; // nada a resgatar; verifica de novo na próxima abertura
-    const owned = legacy.sections.flatMap((section) => (section.templates || []).filter(isUserOwned));
-    if (!owned.length) { localStorage.setItem(LEGACY_CHECKED_KEY, "clean"); return; }
-    byId("legacyCount").textContent = `${owned.length} modelo(s) editado(s) ou criado(s) na versão anterior (V47) ainda estão neste navegador.`;
-    byId("legacyModal").hidden = false;
-  }
-
-  byId("legacyImport").addEventListener("click", () => {
-    try {
-      importFromObject(readJSON(LEGACY_KEY), "Versão anterior");
-      localStorage.setItem(LEGACY_CHECKED_KEY, "imported");
-    } catch (_) {
-      showToast("Não consegui ler os dados antigos.");
+  /* ---------- painel 2 ---------- */
+  function pintaCorpo() {
+    const t = tplAtual();
+    const mostra = Boolean(t) && usaSeg(t);
+    $("app").classList.toggle("sem-corpo", !mostra);
+    if (!mostra) return;
+    $("palco").innerHTML = vista === "frente" ? svgFrente() : svgVerso();
+    $("vista").textContent = vista === "frente" ? "Frente" : "Verso";
+    $("dica").textContent = "Toque no fundo para ver o " + (vista === "frente" ? "verso" : "frente") + ".";
+    const m = usaMec(t);
+    $("mecwrap").hidden = !m;
+    if (m && !$("mec").options.length) {
+      const s = $("mec");
+      s.append(new Option("— escolha o mecanismo —", ""));
+      MECANISMOS.forEach(x => s.append(new Option(x, x)));
+      s.append(new Option("outro (descrever)", "__livre__"));
     }
-    byId("legacyModal").hidden = true;
+    if (m) $("mec").value = MECANISMOS.includes(mecanismo) ? mecanismo : ($("mecLivre").hidden ? "" : "__livre__");
+    marca();
+  }
+  function marca() {
+    document.querySelectorAll(".reg").forEach(p => {
+      const mesmo = p.dataset.seg === seg;
+      const ok = !SEG[p.dataset.seg].lat || bilateral || !lado || p.dataset.lado === lado || p.dataset.lado === "";
+      p.classList.toggle("sel", Boolean(seg) && mesmo && ok);
+    });
+    const n = nomeSeg();
+    $("sel").innerHTML = n ? `Selecionado: <b>${esc(n.toLowerCase())}</b>` : "Nenhum segmento selecionado.";
+    // Coluna, pelve e tórax não têm lado: a opção bilateral não faz sentido.
+    $("bilat").hidden = !(seg && SEG[seg] && SEG[seg].lat);
+    $("bilat").setAttribute("aria-pressed", String(bilateral));
+  }
+  $("palco").addEventListener("click", e => {
+    const p = e.target.closest(".reg");
+    if (!p) { vista = vista === "frente" ? "verso" : "frente"; pintaCorpo(); return; }
+    seg = p.dataset.seg; lado = p.dataset.lado || null;
+    marca(); pintaTexto();
   });
-  byId("legacySkip").addEventListener("click", () => {
-    localStorage.setItem(LEGACY_CHECKED_KEY, "skipped");
-    byId("legacyModal").hidden = true;
-    showToast("Os dados antigos continuam no navegador; use Importar se mudar de ideia.");
+  $("bilat").addEventListener("click", e => {
+    bilateral = !bilateral; e.currentTarget.setAttribute("aria-pressed", String(bilateral));
+    marca(); pintaTexto();
   });
+  $("mec").addEventListener("change", e => {
+    if (e.target.value === "__livre__") { $("mecLivre").hidden = false; mecanismo = $("mecLivre").value; $("mecLivre").focus(); }
+    else { $("mecLivre").hidden = true; mecanismo = e.target.value; }
+    pintaTexto();
+  });
+  $("mecLivre").addEventListener("input", e => { mecanismo = e.target.value; pintaTexto(); });
 
-  // ---------------------------------------------------------------------------
-  // Interface
-  // ---------------------------------------------------------------------------
-
-  function sectionDescription(sectionId, blockCount) {
-    if (["tc", "rnm", "usg"].includes(sectionId)) return "Solicitação simples e relatório médico prontos para editar e copiar.";
-    if (sectionId === "prescricoes") return "Edite e copie cada prescrição separadamente.";
-    if (sectionId === "relatorios") return "Relatório médico estruturado, editável e pronto para copiar.";
-    if (sectionId === "descricoes") return "Diagnóstico, códigos, OPME e descrição cirúrgica em um texto completo.";
-    if (sectionId === "encaminhamentos") return "Checklist clínico objetivo, pronto para ajustar ao caso.";
-    return blockCount > 1 ? "Consulta inicial e reavaliação prontas para copiar." : "Evolução completa pronta para copiar.";
-  }
-
-  function documentLabel(sectionId) {
-    if (["tc", "rnm", "usg"].includes(sectionId)) return "SOLICITAÇÃO DE EXAME";
-    if (sectionId === "prescricoes") return "MEDICAÇÕES E PRESCRIÇÕES";
-    if (["fisioterapia", "acupuntura", "encaminhamentos", "relatorios", "descricoes"].includes(sectionId)) return getSection(sectionId)?.label.toUpperCase();
-    return "PRONTUÁRIO MÉDICO";
-  }
-
-  function autoResize(element) {
-    element.style.height = "auto";
-    element.style.height = `${element.scrollHeight + 2}px`;
-  }
-
-  function renderNavigation() {
-    navigation.replaceChildren();
-    groups.forEach((group) => {
-      const section = document.createElement("section");
-      section.className = "nav-group";
-      const heading = document.createElement("div");
-      heading.className = "group-title";
-      const label = document.createElement("p");
-      label.textContent = group.label;
-      heading.append(label);
-      section.append(heading);
-
-      group.ids.forEach((sectionId) => {
-        const module = getSection(sectionId);
-        if (!module) return;
-        const tree = document.createElement("div");
-        tree.className = "module-tree";
-        const row = document.createElement("div");
-        row.className = `root-row${activeSectionId === sectionId ? " active-root" : ""}`;
-        const rootButton = document.createElement("button");
-        rootButton.className = "root-label-button";
-        const text = document.createElement("span");
-        text.textContent = module.label.toUpperCase();
-        const arrow = document.createElement("b");
-        arrow.textContent = expandedIds.has(sectionId) ? "⌄" : "›";
-        rootButton.append(text, arrow);
-        rootButton.addEventListener("click", () => {
-          if (expandedIds.has(sectionId)) expandedIds.delete(sectionId);
-          else expandedIds.add(sectionId);
-          renderNavigation();
-        });
-        row.append(rootButton);
-        tree.append(row);
-
-        if (expandedIds.has(sectionId)) {
-          const subtabs = document.createElement("div");
-          subtabs.className = "subtabs";
-          orderedTemplates(module).forEach((template) => {
-            const button = document.createElement("button");
-            button.textContent = template.title;
-            button.className = `${template.id === activeTemplateId ? "active " : ""}${state.favorites.includes(template.id) ? "favorite" : ""}`.trim();
-            button.addEventListener("click", () => openTemplate(sectionId, template.id));
-            subtabs.append(button);
-          });
-          const newButton = document.createElement("button");
-          newButton.className = "new-subtab";
-          newButton.textContent = "＋ Nova subaba";
-          newButton.addEventListener("click", () => openNewTemplateModal(sectionId));
-          subtabs.append(newButton);
-          tree.append(subtabs);
-        }
-        section.append(tree);
-      });
-      navigation.append(section);
-    });
-  }
-
-  function orderedTemplates(section) {
-    return [...section.templates].sort((a, b) => {
-      const favoriteDifference = Number(state.favorites.includes(b.id)) - Number(state.favorites.includes(a.id));
-      if (favoriteDifference) return favoriteDifference;
-      const usageDifference = (state.usage[b.id] || 0) - (state.usage[a.id] || 0);
-      return usageDifference || a.title.localeCompare(b.title, "pt-BR");
-    });
-  }
-
-  function openTemplate(sectionId, templateId) {
-    activeSectionId = sectionId;
-    activeTemplateId = templateId;
-    expandedIds.add(sectionId);
-    state.usage[templateId] = (state.usage[templateId] || 0) + 1;
-    state.recent = [templateId, ...state.recent.filter((id) => id !== templateId)].slice(0, 10);
-    scheduleSave();
-    searchPanel.hidden = true;
-    searchInput.value = "";
-    closeMobileMenu();
-    renderNavigation();
-    renderEditor();
-  }
-
-  function renderEditor() {
-    const section = getSection();
-    const template = getTemplate();
-    welcomePanel.hidden = Boolean(template);
-    editorView.hidden = !template;
-    renderSavedStatus();
-    if (!section || !template) return;
-
-    byId("sectionLabel").textContent = section.label.toUpperCase();
-    templateTitle.value = template.title;
-    autoResize(templateTitle);
-    byId("templateDescription").textContent = sectionDescription(section.id, template.blocks.length);
-    byId("documentLabel").textContent = documentLabel(section.id);
-    byId("favoriteButton").textContent = state.favorites.includes(template.id) ? "★" : "☆";
-    byId("copyAllButton").hidden = template.blocks.length < 2;
-    byId("resetButton").hidden = !seedTemplate(template.id);
-    blockList.className = `document-body${template.blocks.length === 1 ? " single" : ""}`;
-    blockList.replaceChildren();
-
-    template.blocks.forEach((block, index) => {
-      const card = document.createElement("section");
-      card.className = `text-section${index === 1 ? " reassessment" : ""}`;
-      const heading = document.createElement("div");
-      heading.className = "section-heading";
-      const headingText = document.createElement("div");
-      const boxLabel = document.createElement("span");
-      boxLabel.textContent = `CAIXA ${index + 1}`;
-      const titleInput = document.createElement("input");
-      titleInput.className = "block-title-input";
-      titleInput.value = block.title;
-      titleInput.maxLength = 100;
-      titleInput.setAttribute("aria-label", `Nome da caixa ${index + 1}`);
-      titleInput.addEventListener("input", () => { block.title = titleInput.value; markModified(template); });
-      headingText.append(boxLabel, titleInput);
-      const actions = document.createElement("div");
-      actions.className = "block-actions";
-      const copyButton = document.createElement("button");
-      copyButton.textContent = "COPIAR TEXTO";
-      copyButton.addEventListener("click", async () => {
-        await copyText(block.content);
-        copyButton.textContent = "✓ COPIADO";
-        copyButton.classList.add("copied");
-        setTimeout(() => { copyButton.textContent = "COPIAR TEXTO"; copyButton.classList.remove("copied"); }, 1600);
-      });
-      const deleteButton = document.createElement("button");
-      deleteButton.className = "delete-block-button";
-      deleteButton.textContent = "EXCLUIR";
-      deleteButton.disabled = template.blocks.length <= 1;
-      deleteButton.addEventListener("click", () => {
-        if (template.blocks.length <= 1) return;
-        if (window.confirm("Excluir somente esta caixa de texto?")) {
-          template.blocks.splice(index, 1);
-          markModified(template);
-          renderEditor();
-        }
-      });
-      actions.append(copyButton, deleteButton);
-      heading.append(headingText, actions);
-      const textarea = document.createElement("textarea");
-      textarea.value = block.content;
-      textarea.placeholder = "DIGITE OU COLE AQUI O TEXTO...";
-      textarea.spellcheck = false;
-      textarea.setAttribute("aria-label", `Conteúdo de ${block.title}`);
-      textarea.addEventListener("input", () => { block.content = textarea.value; markModified(template); autoResize(textarea); });
-      card.append(heading, textarea);
-      blockList.append(card);
-      autoResize(textarea);
-    });
-  }
-
-  function searchEntries(term) {
-    const normalized = normalize(term.trim());
-    if (!normalized) return [];
-    return allEntries().filter(({ section, template }) => normalize([section.label, template.title, ...template.blocks.flatMap((block) => [block.title, block.content])].join(" ")).includes(normalized));
-  }
-
-  function renderSearchPanel() {
-    const term = searchInput.value.trim();
-    let entries;
-    let headingText;
-    if (term) {
-      entries = searchEntries(term);
-      headingText = `${entries.length} ${entries.length === 1 ? "resultado" : "resultados"}`;
-    } else {
-      const promotedIds = [...state.favorites, ...state.recent, ...Object.keys(state.usage).sort((a, b) => (state.usage[b] || 0) - (state.usage[a] || 0))];
-      const seen = new Set();
-      entries = promotedIds.map((id) => allEntries().find(({ template }) => template.id === id)).filter((entry) => entry && !seen.has(entry.template.id) && seen.add(entry.template.id)).slice(0, 8);
-      headingText = entries.length ? "FAVORITOS, RECENTES E MAIS UTILIZADOS" : "COMECE A PESQUISAR";
-    }
-
-    searchPanel.replaceChildren();
-    const count = document.createElement("div");
-    count.className = "search-panel-count";
-    count.textContent = headingText;
-    searchPanel.append(count);
-    if (!entries.length) {
-      const empty = document.createElement("div");
-      empty.className = "search-panel-empty";
-      empty.textContent = term ? "Nenhum resultado. Tente outro diagnóstico, CID ou região." : "Digite um diagnóstico, CID, exame ou região.";
-      searchPanel.append(empty);
+  /* ---------- painel 3 ---------- */
+  function pintaTexto() {
+    const t = tplAtual(), m = modAtual(), docs = $("docs");
+    $("btCopiar").hidden = true; $("btVars").hidden = true; $("btRestaurar").hidden = true;
+    if (!t) {
+      $("olho").textContent = "—"; $("nome").textContent = "Selecione um modelo";
+      docs.innerHTML = `<div class="passo"><div class="num">1</div><p>Escolha um <strong>módulo</strong> e um <strong>modelo</strong> no menu.</p></div>`;
       return;
     }
-
-    const grouped = new Map();
-    entries.slice(0, 60).forEach((entry) => {
-      const list = grouped.get(entry.section.label) || [];
-      list.push(entry);
-      grouped.set(entry.section.label, list);
-    });
-    grouped.forEach((items, sectionLabel) => {
-      const group = document.createElement("section");
-      group.className = "search-panel-group";
-      const title = document.createElement("h2");
-      title.textContent = sectionLabel.toUpperCase();
-      group.append(title);
-      items.forEach(({ section, template }) => {
-        const button = document.createElement("button");
-        button.className = "search-panel-item";
-        const kind = document.createElement("span");
-        kind.className = "search-panel-kind";
-        kind.textContent = section.icon;
-        const text = document.createElement("span");
-        text.className = "search-panel-text";
-        const strong = document.createElement("strong");
-        strong.textContent = template.title;
-        const small = document.createElement("small");
-        small.textContent = section.label;
-        text.append(strong, small);
-        const star = document.createElement("span");
-        star.className = "search-panel-star";
-        star.textContent = state.favorites.includes(template.id) ? "★" : "";
-        button.append(kind, text, star);
-        button.addEventListener("click", () => openTemplate(section.id, template.id));
-        group.append(button);
+    $("olho").textContent = m.label.toUpperCase();
+    $("nome").textContent = t.title;
+    $("btVars").hidden = false;
+    $("btRestaurar").hidden = !doSeed(t.id);
+    if (usaSeg(t) && !seg) {
+      docs.innerHTML = `<div class="passo"><div class="num">2</div><p>Toque no <strong>segmento acometido</strong>. O texto aparece aqui preenchido.</p></div>`;
+      return;
+    }
+    docs.replaceChildren();
+    const faltaMec = usaMec(t) && !mecanismo && temVar(t);
+    if (faltaMec) {
+      const a = document.createElement("div"); a.className = "aviso";
+      a.textContent = "Falta escolher o mecanismo de trauma — ele aparece marcado no texto até ser definido.";
+      docs.append(a);
+    }
+    t.blocks.forEach((b, i) => {
+      const card = document.createElement("section"); card.className = "blk";
+      const bh = document.createElement("div"); bh.className = "bh";
+      const sp = document.createElement("span"); sp.textContent = b.title;
+      const cb = document.createElement("button"); cb.textContent = "Copiar";
+      cb.onclick = async () => {
+        const btn = cb;
+        try { await navigator.clipboard.writeText(preencher(b.content)); } catch (_) {}
+        btn.textContent = "✓ Copiado"; setTimeout(() => btn.textContent = "Copiar", 1400);
+      };
+      bh.append(sp, cb);
+      const ta = document.createElement("textarea");
+      ta.value = preencher(b.content);
+      ta.spellcheck = false;
+      ta.setAttribute("aria-label", "Conteúdo de " + b.title);
+      ta.dataset.bloco = String(i);
+      ta.addEventListener("focus", () => { ultimoFoco = ta; });
+      ta.addEventListener("input", () => {
+        // Edição direta grava no modelo. Se o texto tinha variável e o usuário
+        // digitou por cima, o que ele escreveu vale — é o texto dele.
+        b.content = ta.value; t.modified = Date.now(); agendarSalvar(); auto(ta);
       });
-      searchPanel.append(group);
+      card.append(bh, ta); docs.append(card); auto(ta);
     });
+    $("btCopiar").hidden = false;
   }
+  function auto(ta) { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 2) + "px"; }
+  function pintaTudo() { pintaCorpo(); pintaTexto(); }
 
-  async function copyText(text) {
-    try {
-      await navigator.clipboard.writeText(text);
-      showToast("Texto copiado.");
-    } catch (_) {
-      const area = document.createElement("textarea");
-      area.value = text;
-      area.style.position = "fixed";
-      area.style.opacity = "0";
-      document.body.append(area);
-      area.select();
-      document.execCommand("copy");
-      area.remove();
-      showToast("Texto copiado.");
-    }
+  $("btCopiar").addEventListener("click", async e => {
+    const b = e.currentTarget, t = tplAtual();
+    if (!t) return;
+    const txt = t.blocks.map(x => preencher(x.content).trim()).filter(Boolean).join("\n\n");
+    try { await navigator.clipboard.writeText(txt); } catch (_) {}
+    b.textContent = "✓ COPIADO"; b.classList.add("ok");
+    setTimeout(() => { b.textContent = "COPIAR TUDO"; b.classList.remove("ok"); }, 1500);
+  });
+  $("btRestaurar").addEventListener("click", () => {
+    const t = tplAtual(); const o = doSeed(t && t.id);
+    if (!o || !window.confirm("Restaurar este modelo para o conteúdo original?")) return;
+    const s = modAtual(); const i = s.templates.findIndex(x => x.id === t.id);
+    s.templates[i] = clone(o); salvarJa(); aviso("Modelo restaurado."); pintaTudo();
+  });
+
+  /* ---------- inserir variável ---------- */
+  $("btVars").addEventListener("click", () => {
+    const g = $("vgrid"); g.replaceChildren();
+    VARIAVEIS.forEach(([v, ex, desc]) => {
+      const b = document.createElement("button");
+      b.innerHTML = `<code>${esc(v)}</code> → ${esc(ex)}<small>${esc(desc)}</small>`;
+      b.onclick = () => inserir(v);
+      g.append(b);
+    });
+    $("modalVars").hidden = false;
+  });
+  function inserir(v) {
+    const t = tplAtual();
+    const ta = ultimoFoco && document.body.contains(ultimoFoco) ? ultimoFoco : $("docs").querySelector("textarea");
+    if (!t || !ta) return;
+    const i = Number(ta.dataset.bloco);
+    const p = ta.selectionStart ?? ta.value.length;
+    ta.value = ta.value.slice(0, p) + v + ta.value.slice(ta.selectionEnd ?? p);
+    t.blocks[i].content = ta.value;
+    // ligar automaticamente o recurso correspondente
+    t.usa = t.usa || {};
+    if (v.includes("SEG")) { t.usa.segmento = true; t.usa.lateralidade = true; }
+    if (v.includes("MEC")) t.usa.mecanismo = true;
+    t.modified = Date.now();
+    salvarJa(); $("modalVars").hidden = true;
+    aviso("Variável inserida. O modelo agora usa " + (v.includes("MEC") ? "mecanismo de trauma." : "segmento anatômico."));
+    pintaTudo();
+    setTimeout(() => { const n = $("docs").querySelectorAll("textarea")[i]; if (n) { n.focus(); n.setSelectionRange(p + v.length, p + v.length); } }, 0);
   }
+  document.querySelectorAll("[data-fecha]").forEach(b => b.onclick = () => $("modalVars").hidden = true);
+  $("modalVars").addEventListener("click", e => { if (e.target === $("modalVars")) $("modalVars").hidden = true; });
 
-  function openNewTemplateModal(sectionId) {
-    pendingSectionId = sectionId;
-    byId("newTemplateHeading").textContent = `Nova subaba de ${getSection(sectionId)?.label || "modelos"}`;
-    byId("newTemplateDescription").textContent = `Ela será criada dentro de ${getSection(sectionId)?.label || "este módulo"}.`;
-    byId("newTemplateName").value = "";
-    byId("newTemplateModal").hidden = false;
-    setTimeout(() => byId("newTemplateName").focus(), 0);
-  }
+  /* ---------- exportar / importar ---------- */
+  $("btExportar").addEventListener("click", () => {
+    salvarJa();
+    const blob = new Blob([JSON.stringify({ app: "DocTemplate Ortopedia", format: 1, seedVersion: seed.version, exportedAt: new Date().toISOString(), state: estado }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = `doctemplate-4.0-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.json`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    aviso("Arquivo exportado.");
+  });
+  $("btImportar").addEventListener("click", () => $("arquivo").click());
+  $("arquivo").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = () => {
+      try {
+        const p = JSON.parse(String(r.result));
+        const inc = p && p.state && Array.isArray(p.state.sections) ? p.state : (p && Array.isArray(p.sections) ? p : null);
+        if (!inc) throw new Error("formato");
+        estado = mesclar(inc, estado); salvarJa(); pintaNav(); pintaTudo();
+        aviso("Arquivo importado e mesclado.");
+      } catch (_) { aviso("Não reconheci este arquivo. Use um .json exportado pelo DocTemplate."); }
+    };
+    r.readAsText(f);
+  });
 
-  function closeNewTemplateModal() {
-    byId("newTemplateModal").hidden = true;
-    pendingSectionId = null;
-  }
+  /* ---------- menu no celular ---------- */
+  function abrirMenu() { $("c1").classList.add("open"); $("veu").classList.add("on"); }
+  function fecharMenu() { $("c1").classList.remove("open"); $("veu").classList.remove("on"); }
+  $("menuBt").addEventListener("click", abrirMenu);
+  $("fechaMenu").addEventListener("click", fecharMenu);
+  $("veu").addEventListener("click", fecharMenu);
 
-  function openMobileMenu() {
-    byId("sidebar").classList.add("open");
-    byId("backdrop").classList.add("visible");
-  }
+  $("gs").addEventListener("input", pintaNav);
+  document.addEventListener("keydown", e => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); abrirMenu(); $("gs").focus(); }
+    if (e.key === "Escape" && !$("modalVars").hidden) $("modalVars").hidden = true;
+  });
+  window.addEventListener("resize", () => { $("docs").querySelectorAll("textarea").forEach(auto); });
 
-  function closeMobileMenu() {
-    byId("sidebar").classList.remove("open");
-    byId("backdrop").classList.remove("visible");
-  }
-
-  function setupWelcome() {
-    const hour = new Date().getHours();
-    const salutation = hour < 12 ? "Bom dia" : hour < 18 ? "Boa tarde" : "Boa noite";
-    byId("welcomeTitle").textContent = `${salutation}, Dr. Robson.`;
-    byId("welcomeMessage").textContent = workGreetings[Math.floor(Math.random() * workGreetings.length)];
-  }
-
-  // ---------------------------------------------------------------------------
-  // Eventos
-  // ---------------------------------------------------------------------------
-
-  searchInput.addEventListener("focus", () => { renderSearchPanel(); searchPanel.hidden = false; });
-  searchInput.addEventListener("input", () => { renderSearchPanel(); searchPanel.hidden = false; });
-  searchInput.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") { searchPanel.hidden = true; searchInput.blur(); }
-    if (event.key === "Enter") searchPanel.querySelector(".search-panel-item")?.click();
-  });
-  document.addEventListener("click", (event) => {
-    if (!event.target.closest(".sidebar-search-area")) searchPanel.hidden = true;
-  });
-  document.addEventListener("keydown", (event) => {
-    if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
-      event.preventDefault();
-      searchInput.focus();
-    }
-  });
-  templateTitle.addEventListener("input", () => {
-    const template = getTemplate();
-    if (!template) return;
-    template.title = templateTitle.value.replace(/\n/g, " ");
-    autoResize(templateTitle);
-    markModified(template);
-  });
-  templateTitle.addEventListener("keydown", (event) => { if (event.key === "Enter") { event.preventDefault(); templateTitle.blur(); } });
-  templateTitle.addEventListener("blur", () => { flushSave(); renderNavigation(); });
-  byId("copyAllButton").addEventListener("click", () => { const template = getTemplate(); if (template) copyText(template.blocks.map((block) => block.content.trim()).filter(Boolean).join("\n\n")); });
-  byId("favoriteButton").addEventListener("click", () => {
-    const template = getTemplate();
-    if (!template) return;
-    const index = state.favorites.indexOf(template.id);
-    if (index >= 0) state.favorites.splice(index, 1);
-    else state.favorites.unshift(template.id);
-    persist(index >= 0 ? "Removido dos favoritos." : "Adicionado aos favoritos.");
-    renderNavigation();
-    renderEditor();
-  });
-  byId("addBlockButton").addEventListener("click", () => {
-    const template = getTemplate();
-    if (!template) return;
-    template.blocks.push({ title: "NOVA CAIXA", content: "" });
-    markModified(template);
-    renderEditor();
-    blockList.lastElementChild?.scrollIntoView({ behavior: "smooth" });
-  });
-  byId("resetButton").addEventListener("click", () => {
-    const section = getSection();
-    const template = getTemplate();
-    if (!section || !template) return;
-    const original = seedTemplate(template.id);
-    if (!original) return showToast("Modelos criados por você não possuem versão original.");
-    if (!window.confirm("Restaurar este modelo para o conteúdo original?")) return;
-    const index = section.templates.findIndex((item) => item.id === template.id);
-    section.templates[index] = clone(original);
-    persist("Modelo restaurado.");
-    renderNavigation();
-    renderEditor();
-  });
-  byId("deleteTemplateButton").addEventListener("click", () => {
-    const section = getSection();
-    const template = getTemplate();
-    if (!section || !template || !window.confirm(`Excluir a subaba “${template.title}”?`)) return;
-    section.templates = section.templates.filter((item) => item.id !== template.id);
-    if (seedTemplate(template.id) && !state.deleted.includes(template.id)) state.deleted.push(template.id);
-    state.favorites = state.favorites.filter((id) => id !== template.id);
-    state.recent = state.recent.filter((id) => id !== template.id);
-    activeTemplateId = null;
-    persist("Subaba excluída.");
-    renderNavigation();
-    renderEditor();
-  });
-  byId("confirmNewTemplate").addEventListener("click", () => {
-    const name = byId("newTemplateName").value.trim();
-    const section = getSection(pendingSectionId);
-    if (!name || !section) return;
-    const template = { id: uid(section.id), title: name.toUpperCase(), blocks: [{ title: "CAIXA 1", content: "" }], modified: Date.now() };
-    section.templates.push(template);
-    const sectionId = section.id;
-    closeNewTemplateModal();
-    openTemplate(sectionId, template.id);
-    persist("Subaba criada.");
-  });
-  byId("newTemplateName").addEventListener("keydown", (event) => { if (event.key === "Enter") byId("confirmNewTemplate").click(); if (event.key === "Escape") closeNewTemplateModal(); });
-  document.querySelectorAll("[data-close-modal]").forEach((button) => button.addEventListener("click", closeNewTemplateModal));
-  byId("newTemplateModal").addEventListener("click", (event) => { if (event.target === byId("newTemplateModal")) closeNewTemplateModal(); });
-  byId("exportButton").addEventListener("click", exportState);
-  byId("importButton").addEventListener("click", () => byId("importFile").click());
-  byId("importFile").addEventListener("change", (event) => {
-    const file = event.target.files && event.target.files[0];
-    if (file) importFile(file);
-    event.target.value = "";
-  });
-  byId("menuButton").addEventListener("click", openMobileMenu);
-  byId("closeNav").addEventListener("click", closeMobileMenu);
-  byId("backdrop").addEventListener("click", closeMobileMenu);
-  window.addEventListener("resize", () => { if (!editorView.hidden) { autoResize(templateTitle); blockList.querySelectorAll("textarea").forEach(autoResize); } });
-
-  // ---------------------------------------------------------------------------
-  // Inicialização
-  // ---------------------------------------------------------------------------
-
-  setupWelcome();
-  renderNavigation();
-  renderEditor();
-  if (state.migratedFrom !== undefined) {
-    delete state.migratedFrom;
-    persist("Modelos atualizados para a nova versão. Suas edições e subabas foram preservadas.");
-  }
-  checkLegacy();
+  /* ---------- início ---------- */
+  pintaNav(); pintaTudo(); pintarStatus();
+  if (estado.migradoDe !== undefined) { delete estado.migradoDe; salvarJa(); aviso("Modelos atualizados. Suas edições foram preservadas."); }
 })();
