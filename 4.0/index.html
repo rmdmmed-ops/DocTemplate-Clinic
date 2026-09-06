@@ -1,0 +1,85 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0d2033" />
+<meta name="description" content="DocTemplate Ortopedia 4.0 — modelos clínicos com mapa anatômico." />
+<title>DocTemplate Ortopedia 4.0</title>
+<link rel="stylesheet" href="styles.css?v=1" />
+</head>
+<body>
+<div class="app" id="app">
+
+  <section class="col c1" id="c1">
+    <div class="brand">
+      <div class="mk">+</div>
+      <div><strong>DocTemplate</strong><span>ORTOPEDIA · 4.0 BETA</span></div>
+      <button class="fecha-menu" id="fechaMenu" aria-label="Fechar menu">×</button>
+    </div>
+    <div class="gsearch">
+      <span class="ic" aria-hidden="true">⌕</span>
+      <input id="gs" type="search" placeholder="Buscar em todos os módulos…" aria-label="Buscar em todos os módulos" autocomplete="off" />
+      <kbd>Ctrl K</kbd>
+    </div>
+    <nav class="nav" id="nav" aria-label="Módulos clínicos"></nav>
+    <div class="rodape">
+      <div class="status"><span class="pt" id="pt"></span><span id="salvo">Salvo neste navegador</span></div>
+      <div class="acoes">
+        <button id="btExportar" title="Baixa um arquivo .json com seus modelos e edições">⇩ Exportar</button>
+        <button id="btImportar" title="Lê um arquivo .json exportado antes">⇧ Importar</button>
+        <input id="arquivo" type="file" accept=".json,application/json" hidden />
+      </div>
+    </div>
+  </section>
+
+  <section class="col c2" id="c2">
+    <div class="cab">
+      <h2>Segmento</h2>
+      <span class="vista" id="vista">Frente</span>
+    </div>
+    <div class="palco" id="palco"></div>
+    <div class="pe2">
+      <div class="sel" id="sel"></div>
+      <button class="bilat" id="bilat" aria-pressed="false" hidden><span class="bx" aria-hidden="true"></span> Bilateral (direito e esquerdo)</button>
+      <div class="mecwrap" id="mecwrap" hidden>
+        <label for="mec">Mecanismo de trauma</label>
+        <select id="mec"></select>
+        <input id="mecLivre" type="text" placeholder="Descreva o mecanismo" hidden aria-label="Mecanismo de trauma" />
+      </div>
+      <p class="dica" id="dica"></p>
+    </div>
+  </section>
+
+  <section class="col c3" id="c3">
+    <div class="cab3">
+      <div class="tit">
+        <div class="olho" id="olho">—</div>
+        <h2 id="nome">Selecione um modelo</h2>
+      </div>
+      <div class="acoes3">
+        <button class="opt" id="btVars" hidden title="Inserir variável no texto">＋ variável</button>
+        <button class="opt" id="btRestaurar" hidden>Restaurar original</button>
+        <button class="copiar" id="btCopiar" hidden>COPIAR TUDO</button>
+      </div>
+    </div>
+    <div class="docs" id="docs"></div>
+  </section>
+
+  <button class="menu-bt" id="menuBt" aria-label="Abrir menu">☰</button>
+  <button class="veu" id="veu" aria-label="Fechar menu"></button>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <div class="modal-fundo" id="modalVars" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="varsTit">
+      <h3 id="varsTit">Inserir variável</h3>
+      <p>Clique para inserir no ponto onde o cursor estava. O aplicativo troca pelo valor escolhido no mapa.</p>
+      <div class="vgrid" id="vgrid"></div>
+      <div class="modal-acoes"><button data-fecha>Fechar</button></div>
+    </div>
+  </div>
+</div>
+<script src="data.js?v=1"></script>
+<script src="app.js?v=1"></script>
+</body>
+</html>
