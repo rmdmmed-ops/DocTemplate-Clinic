@@ -5,15 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="theme-color" content="#0d2033" />
     <meta name="description" content="DocTemplate Ortopedia 3.0 — modelos clínicos editáveis para uso médico." />
-    <title>DocTemplate Ortopedia 3.1</title>
-    <link rel="stylesheet" href="styles.css?v=4" />
+    <title>DocTemplate Ortopedia 3.2</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png" />
+    <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="DocTemplate" />
+    <link rel="stylesheet" href="styles.css?v=5" />
   </head>
   <body>
     <main class="app-shell">
       <aside class="sidebar" id="sidebar">
         <div class="brand">
           <div class="brand-mark">+</div>
-          <div><strong>DocTemplate</strong><span>ORTOPEDIA · 3.1</span></div>
+          <div><strong>DocTemplate</strong><span>ORTOPEDIA · 3.2</span></div>
           <button class="close-nav" id="closeNav" aria-label="Fechar menu">×</button>
         </div>
 
@@ -40,7 +47,7 @@
       <section class="workspace">
         <button class="menu-button" id="menuButton" aria-label="Abrir menu">☰</button>
         <div class="content-area">
-          <div class="page-version">DOC TEMPLATE ORTOPEDIA – 3.1 <b>(VERSÃO ATUAL)</b></div>
+          <div class="page-version">DOC TEMPLATE ORTOPEDIA – 3.2 <b>(VERSÃO ATUAL)</b></div>
 
           <section class="blank-panel welcome-panel" id="welcomePanel" aria-label="Boas-vindas">
             <div class="welcome-content">
@@ -105,7 +112,42 @@
       </div>
     </div>
 
-    <script src="data.js?v=4"></script>
-    <script src="app.js?v=4"></script>
+    <script>
+      // Registra o service worker (funcionamento sem internet) e avisa quando
+      // houver versão nova, em vez de deixar o app congelado numa versão antiga.
+      if ("serviceWorker" in navigator) {
+        window.addEventListener("load", () => {
+          navigator.serviceWorker.register("sw.js").then((registration) => {
+            const offer = (worker) => {
+              const toast = document.getElementById("toast");
+              if (!toast) return;
+              toast.textContent = "Nova versão disponível. Toque para atualizar.";
+              toast.classList.add("visible", "actionable");
+              toast.onclick = () => { worker.postMessage("SKIP_WAITING"); toast.textContent = "Atualizando…"; };
+            };
+            if (registration.waiting) offer(registration.waiting);
+            registration.addEventListener("updatefound", () => {
+              const worker = registration.installing;
+              if (!worker) return;
+              worker.addEventListener("statechange", () => {
+                if (worker.state === "installed" && navigator.serviceWorker.controller) offer(worker);
+              });
+            });
+          }).catch(() => {});
+          // Só recarrega quando é ATUALIZAÇÃO de uma versão já instalada.
+          // Na primeira visita o worker assume o controle e isso não deve
+          // provocar um recarregamento surpresa no meio do plantão.
+          const hadController = Boolean(navigator.serviceWorker.controller);
+          let reloading = false;
+          navigator.serviceWorker.addEventListener("controllerchange", () => {
+            if (!hadController || reloading) return;
+            reloading = true;
+            window.location.reload();
+          });
+        });
+      }
+    </script>
+    <script src="data.js?v=5"></script>
+    <script src="app.js?v=5"></script>
   </body>
 </html>

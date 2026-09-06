@@ -81,3 +81,4 @@
 .text-section textarea,.text-section.reassessment textarea,.document-body.single .text-section textarea{min-height:160px;overflow:hidden;resize:none}
 .saved-status.pending{background:#fff4e0;color:#8a5a12}
 @media(max-width:820px){.search-wrap kbd{display:none}.subtabs button,.subtabs .new-subtab{min-height:44px;font-size:12px}.block-actions button,.toolbar-actions button,.bottom-save-actions button,.sidebar-foot-actions button{min-height:44px}.close-nav{width:44px;height:44px}.text-section textarea,.text-section.reassessment textarea,.document-body.single .text-section textarea{min-height:140px}}
+.toast.actionable{cursor:pointer;background:#0d2033;border:1px solid #3887b5}
