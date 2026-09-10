@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="theme-color" content="#0d2033" />
 <meta name="description" content="DocTemplate — seu espaço de modelos clínicos ortopédicos. Encontre, personalize e copie." />
-<title>DocTemplate · Ortopedia</title>
+<title>DocTemplate 4.12.1 · Ortopedia</title>
 <link rel="manifest" href="manifest.webmanifest" />
 <link rel="icon" href="icons/icon-192.png" sizes="192x192" type="image/png" />
 <link rel="apple-touch-icon" href="icons/apple-touch-icon-180.png" />
@@ -13,7 +13,7 @@
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="DocTemplate" />
-<link rel="stylesheet" href="styles.css?v=8" />
+<link rel="stylesheet" href="styles.css?v=4.12.1" />
 </head>
 <body>
 <div class="app" id="app">
@@ -21,7 +21,7 @@
   <section class="col c1" id="c1">
     <div class="brand">
       <div class="mk">+</div>
-      <div><strong>DocTemplate</strong><span>ESPAÇO CLÍNICO · ORTOPEDIA</span></div>
+      <div><strong>DocTemplate</strong><span>ORTOPEDIA · VERSÃO 4.12.1</span></div>
       <button class="fecha-menu" id="fechaMenu" aria-label="Fechar menu">×</button>
     </div>
     <div class="gsearch">
@@ -29,17 +29,23 @@
       <input id="gs" type="search" placeholder="Buscar em todos os módulos…" aria-label="Buscar em todos os módulos" autocomplete="off" />
       <kbd>Ctrl K</kbd>
     </div>
-    <div class="quick-filters" role="group" aria-label="Biblioteca"><button data-filter="all" aria-pressed="true">Modelos</button><button data-filter="favorites" aria-pressed="false">Favoritos</button><button data-filter="recent" aria-pressed="false">Recentes</button></div>
-    <nav class="nav" id="nav" aria-label="Módulos clínicos"></nav>
-    <div class="library-actions"><button id="newModule">+ Módulo</button><button id="newTemplate">+ Modelo</button></div>
+    <nav class="nav" id="nav" aria-label="Módulos clínicos">
+    <section id="settingsSection" class="settings" aria-label="Configurações">
+      <button id="settingsToggle" class="settings-toggle" aria-expanded="false">⚙ Configurações <span>›</span></button>
+      <div id="settingsPanel" class="settings-panel" hidden>
+        <button id="newTemplate">＋ Novo modelo</button>
+        <button id="newModule">＋ Novo módulo</button>
+        <div class="acoes biblioteca-arquivos" aria-label="Arquivos da biblioteca">
+          <button id="btExportar" title="Baixa um arquivo .json com seus modelos e edições">⇩ Exportar</button>
+          <button id="btImportar" title="Lê um arquivo .json exportado antes">⇧ Importar</button>
+          <input id="arquivo" type="file" accept=".json,application/json" hidden />
+        </div>
+        <button id="restoreImport" class="opt">Desfazer última importação</button>
+      </div>
+    </section>
+    </nav>
     <div class="rodape">
       <div class="status"><span class="pt" id="pt"></span><span id="salvo">Salvo neste navegador</span></div>
-      <div class="acoes">
-        <button id="btExportar" title="Baixa um arquivo .json com seus modelos e edições">⇩ Exportar</button>
-        <button id="btImportar" title="Lê um arquivo .json exportado antes">⇧ Importar</button>
-        <input id="arquivo" type="file" accept=".json,application/json" hidden />
-      </div>
-      <a class="anterior" href="3.2/">Versão clássica 3.2 ↗</a>
     </div>
   </section>
 
@@ -56,10 +62,9 @@
       <button type="button" data-vista="pes" aria-pressed="false">Pés</button>
     </div>
     <div class="pe2">
-      <label for="segmentSelect">Região anatômica</label><select id="segmentSelect"><option value="">Selecionar região…</option></select>
+      <label for="segmentSelect">Adicionar segmento</label><select id="segmentSelect"><option value="">Selecionar segmento…</option></select>
       <div id="sideChoices" class="side-choices" role="group" aria-label="Lateralidade"><button data-side="D">Direito</button><button data-side="E">Esquerdo</button></div>
-      <div class="sel" id="sel"></div>
-      <button class="bilat" id="bilat" aria-pressed="false" hidden><span class="bx" aria-hidden="true"></span> Bilateral (direito e esquerdo)</button>
+      <div class="sel" id="sel"></div><div id="regionList" aria-label="Regiões selecionadas"></div>
       <div class="mecwrap" id="mecwrap" hidden>
         <label for="mec">Mecanismo de trauma</label>
         <select id="mec"></select>
@@ -76,11 +81,17 @@
         <h2 id="nome">Selecione um modelo</h2>
       </div>
       <div class="acoes3">
-        <button class="opt" id="favorite" hidden aria-label="Marcar como favorito">☆</button>
+        <button class="copiar" id="btCopiar" hidden>COPIAR TUDO</button>
+        <details id="modelActions" class="model-actions" hidden>
+        <summary class="opt">Mais ações</summary>
+        <div class="model-actions-panel">
+        <button class="opt" id="saveAsModel" hidden>Salvar como novo modelo</button><button class="opt" id="favorite" hidden aria-label="Marcar como favorito">☆</button>
         <button class="opt" id="editMode" hidden aria-pressed="false">Personalizar modelo</button>
         <button class="opt" id="btVars" hidden title="Inserir variável no texto">＋ variável</button>
         <button class="opt" id="btRestaurar" hidden>Restaurar original</button>
-        <button class="copiar" id="btCopiar" hidden>COPIAR TUDO</button>
+        <button class="opt" id="recoverDraft" hidden>Recuperar rascunho</button>
+        </div>
+        </details>
       </div>
     </div>
     <div class="context-bar" id="contextBar" hidden><button id="showAnatomy">Selecionar região</button><span id="contextSummary"></span><button id="resetContext">Limpar seleções</button></div>
@@ -93,8 +104,7 @@
   <button class="menu-bt" id="menuBt" aria-label="Abrir menu">☰</button>
   <button class="veu" id="veu" aria-label="Fechar menu"></button>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
-  <div class="update-banner" id="updateBanner" hidden><span>Nova versão disponível.</span><button id="applyUpdate">Atualizar agora</button></div>
-
+  <div class="update-banner" id="updateBanner" hidden><span>Atualização disponível.</span><button id="applyUpdate" type="button">Atualizar agora</button></div>
   <div class="modal-fundo" id="modalVars" hidden>
     <div class="modal" role="dialog" aria-modal="true" aria-labelledby="varsTit">
       <h3 id="varsTit">Inserir variável</h3>
@@ -107,40 +117,29 @@
 <script>
   if ("serviceWorker" in navigator) {
     window.addEventListener("load", () => {
-      navigator.serviceWorker.register("sw.js").then((registro) => {
-        const oferecer = (worker) => {
-          document.getElementById("updateBanner").hidden = false;
-          document.getElementById("applyUpdate").onclick = () => {
-            if (window.DocHasDrafts && !window.confirm("Atualizar encerra os rascunhos desta sessão. Já copiou o que precisa?")) return;
-            if (window.DocFlush && !window.DocFlush()) return;
-            worker.postMessage("SKIP_WAITING");
+      navigator.serviceWorker.register("sw.js").then(registro => {
+        let requested = false;
+        const offer = worker => {
+          document.getElementById('updateBanner').hidden = false;
+          document.getElementById('applyUpdate').onclick = () => {
+            if(window.DocFlush && !window.DocFlush()) return;
+            requested = true; worker.postMessage('SKIP_WAITING');
           };
         };
-        if (registro.waiting) oferecer(registro.waiting);
-        registro.addEventListener("updatefound", () => {
-          const worker = registro.installing;
-          if (!worker) return;
-          worker.addEventListener("statechange", () => {
-            if (worker.state === "installed" && navigator.serviceWorker.controller) oferecer(worker);
-          });
+        if(registro.waiting) offer(registro.waiting);
+        registro.addEventListener('updatefound', () => {
+          const worker=registro.installing;
+          if(worker)worker.addEventListener('statechange',()=>{if(worker.state==='installed' && navigator.serviceWorker.controller)offer(worker);});
         });
+        navigator.serviceWorker.addEventListener('controllerchange',()=>{if(requested)window.location.reload();});
         navigator.serviceWorker.ready.then(() => { document.getElementById("networkStatus").textContent = navigator.onLine ? "Disponível offline" : "Modo offline"; });
       }).catch(() => { document.getElementById("networkStatus").textContent = "Offline indisponível neste navegador"; });
-      // Só recarrega quando é ATUALIZAÇÃO de uma versão já instalada; na primeira
-      // visita o worker assume o controle e isso não pode virar um recarregamento
-      // surpresa no meio do plantão.
-      const tinhaControle = Boolean(navigator.serviceWorker.controller);
-      let recarregando = false;
-      navigator.serviceWorker.addEventListener("controllerchange", () => {
-        if (!tinhaControle || recarregando) return;
-        recarregando = true;
-        window.location.reload();
-      });
     });
   }
 </script>
-<script src="data.js?v=8"></script>
-<script src="core.js?v=8"></script>
-<script src="app.js?v=8"></script>
+<dialog id="actionDialog" aria-labelledby="actionTitle"><form id="actionForm"><h2 id="actionTitle"></h2><p id="actionMessage"></p><input id="actionInput" autocomplete="off" maxlength="160"/><div class="dialog-actions"><button type="button" id="actionCancel">Cancelar</button><button type="submit">Confirmar</button></div></form></dialog>
+<script src="data.js?v=4.12.1"></script>
+<script src="core.js?v=4.12.1"></script>
+<script src="app.js?v=4.12.1"></script>
 </body>
 </html>
