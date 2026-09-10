@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  /* DocTemplate Ortopedia 4.0 — versão principal.
+  /* DocTemplate Ortopedia 4.9 — versão principal.
      A 3.2 continua publicada em /3.2/ como rota de volta, e a chave dela no
      navegador nunca é apagada. */
   const CHAVE = "doctemplate-ortopedia:4.0";
@@ -9,7 +9,8 @@
   // precisam atravessar para a 4.0 na primeira abertura. Nunca apagamos esta
   // chave: ela é a rede de segurança se for preciso voltar para a 3.2.
   const CHAVE_ANTERIOR = "doctemplate-ortopedia:3.0";
-  const ATRASO_SALVAR = 600;
+  const ATRASO_SALVAR = 250;
+  const RELEASE = "4.11.3";
 
   const seed = window.DOCTEMPLATE_SEED;
   if (!seed || !Array.isArray(seed.sections)) {
@@ -19,13 +20,16 @@
 
   const GRUPOS = [
     ["EVOLUÇÕES", ["ps", "ambulatorio", "enfermaria", "internacao"]],
-    ["PRESCRIÇÕES", ["prescricoes"]],
-    ["EXAMES", ["tc", "rnm", "usg"]],
-    ["DOCUMENTOS E DESCRIÇÕES", ["encaminhamentos", "fisioterapia", "acupuntura", "relatorios", "descricoes"]],
+    ["MEDICAMENTOS", ["prescricoes"]],
+    ["EXAMES DE IMAGEM", ["rnm", "tc", "usg"]],
+    ["FISIOTERAPIA E ACUPUNTURA", ["fisioterapia", "acupuntura"]],
+    ["ENCAMINHAMENTOS", ["encaminhamentos"]],
+    ["RELATÓRIOS", ["relatorios"]],
+    ["DESCRIÇÕES", ["descricoes"]],
   ];
 
   const MECANISMOS = ["queda da própria altura","queda de altura","acidente motociclístico",
-    "acidente automobilístico","atropelamento","trauma direto","torção","esmagamento","lesão esportiva"];
+    "acidente automobilístico","atropelamento","trauma direto","entorse/torção","torção","esmagamento","lesão esportiva"];
 
   // Vocabulário de segmentos validado no uso real (Agenda Cirúrgica HMTS).
   const SEG = {};
@@ -90,23 +94,13 @@
       if (!alvo) { alvo = { ...clone(ss), templates: [] }; r.sections.push(alvo); }
       (ss.templates || []).forEach(t => {
         if (!t || !t.id || !Array.isArray(t.blocks)) return;
+        const owner = r.sections.find(s => s.templates.some(x => x.id === t.id));
+        const atual = owner?.templates.find(x => x.id === t.id);
+        if (owner && owner !== alvo) owner.templates = owner.templates.filter(x => x.id !== t.id);
         const i = alvo.templates.findIndex(x => x.id === t.id);
-        if (i === -1) { if (!apagados.has(t.id) || !doSeed(t.id)) alvo.templates.push(clone(t)); return; }
-        if (doUsuario(t, mesmaSafra)) {
-          const atual = alvo.templates[i];
-          if (atual.modified && difere(atual, t)) {
-            alvo.templates.push(Object.assign(clone(t), { id: uid(alvo.id), title: `${t.title} (IMPORTADO)` }));
-          } else {
-            // o campo usa vem sempre do seed: é estrutura, não conteúdo do usuário
-            // a estrutura (o que o mapa preenche) vem sempre do seed; só o
-            // texto é do usuário
-            alvo.templates[i] = Object.assign(clone(t), {
-              usa: t.usa || atual.usa || {}, mecanismoPadrao: atual.mecanismoPadrao,
-              segPadrao: atual.segPadrao, fixo: atual.fixo,
-              modified: t.modified || Date.now(),
-            });
-          }
-        }
+        if (apagados.has(t.id)) return;
+        const chosen = !atual || doUsuario(t, mesmaSafra) ? clone(t) : clone(atual);
+        if (i < 0) alvo.templates.push(chosen); else alvo.templates[i] = chosen;
       });
     });
     r.sections = r.sections.filter(s => !r.deletedSections.includes(s.id));
@@ -116,6 +110,7 @@
     r.recent = [...new Set([...(salvo.recent || []), ...(r.recent || [])])].filter(id => conhecidos.has(id)).slice(0, 10);
     r.usage = Object.assign({}, r.usage || {}, salvo.usage || {});
     Object.keys(r.usage).forEach(id => { if (!conhecidos.has(id)) delete r.usage[id]; });
+    r.drafts = clone(salvo.drafts || r.drafts || {}); r.context = clone(salvo.context || r.context || null); r.contexts=clone(salvo.contexts || r.contexts || {}); r.history = clone(salvo.history || r.history || []);
     r.version = seed.version;
     return r;
   }
@@ -145,9 +140,33 @@
 
   let abaAberta = null, tplSel = null, buscaAba = "";
   let filtro = 'all', editando = false;
-  const rascunhos = new Map();
-  const blocosAtuais = () => rascunhos.get(tplSel) || tplAtual()?.blocks || [];
+  function resetMenuState() {
+    abaAberta = null;
+    buscaAba = "";
+    filtro = 'all';
+    $("gs").value = "";
+    const panel = $("settingsPanel");
+    if (panel) {
+      panel.hidden = true;
+      $("settingsToggle").setAttribute("aria-expanded", "false");
+      $("settingsToggle").querySelector("span").textContent = "›";
+    }
+  }
+  const rascunhos = new Map(Object.entries(estado.drafts || {}));
+  let usarRascunho = false;
+  function blocosAtuais() {
+    const t=tplAtual(), blocks=(usarRascunho && rascunhos.get(tplSel))||t?.blocks||[];
+    if(!t?.multissegmentar)return blocks;
+    const regional=contexts().map(c=>{
+      const key=c.id;
+      const previous=blocks.find(b=>b.regionKey===key);
+      return {...(previous||{content:'EXAME FÍSICO {{DO_SEG}}:\n[Descrever os achados observados.]\n\nHIPÓTESE DIAGNÓSTICA {{NO_SEG}}:\n[Registrar a hipótese após a avaliação.]\n\nCONDUTA {{DO_SEG}}:\n[Registrar a conduta definida pelo médico.]'}),title:'AVALIAÇÃO — '+segmentName(c),regionKey:key,regionContext:clone(c)};
+    });
+    const general=blocks.filter(b=>!b.regionKey);
+    return [...general.slice(0,1),...regional,...general.slice(1)];
+  }
   let seg = null, lado = null, bilateral = false, mecanismo = "", vista = "frente";
+  let extras = [], regionId=uid('region');
   let focarBusca = false, sujo = false, timerSalvar = null, timerToast = null, ultimoFoco = null;
 
   const tplAtual = () => { for (const s of estado.sections) { const t = s.templates.find(x => x.id === tplSel); if (t) return t; } return null; };
@@ -160,8 +179,25 @@
   const mostraCorpo = t => Boolean(t) && (usaSeg(t) || Boolean(fixoDe(t)));
   // Regra do esqueleto apendicular: quem tem lado, pede lado.
   const temLado = id => Boolean(id && SEG[id] && SEG[id].lat);
-  const aceitaRegiao = id => !tplAtual()?.segPadrao || tplAtual().segPadrao === id || (tplAtual().segPadrao === 'mao' && /^mao[1-5]$/.test(id));
+  // A região é um dado do atendimento, não uma limitação do modelo. Modelos
+  // específicos continuam dando o roteiro habitual, mas podem documentar
+  // achados adicionais encontrados durante a avaliação.
+  const aceitaRegiao = id => Boolean(id && SEG[id]) && !fixoDe(tplAtual());
   function aplicarPadroes(t) {
+    // Padrões do roteiro, inclusive para modelos já salvos em navegadores antigos.
+    // Não substitui uma escolha manual durante o atendimento.
+    const titulo = norm(t?.title || '');
+    const contusao = /\bcontusao\b|\bcortocontuso\b/.test(titulo);
+    const entorse = /\bentorse\b/.test(titulo);
+    // Identifica também modelos próprios (ex.: ENTORSE DE JOELHO), sem
+    // inferir mecanismo pela região isolada ou por dor inespecífica.
+    const porTitulo = contusao && !entorse ? 'trauma direto' : entorse && !contusao ? 'entorse/torção' : '';
+    const padrao = porTitulo || {
+      'ps-contusao-1': 'trauma direto',
+      'ps-ferimento-cortocontuso-8': 'trauma direto',
+      'ps-entorse-de-tornozelo-14': 'entorse/torção',
+    }[t?.id];
+    if (padrao && !mecanismo) mecanismo = padrao;
     const fx = fixoDe(t);
     if (fx) { seg = fx.seg; lado = fx.lado || null; bilateral = Boolean(fx.bilateral); return; }
     // O lado é do paciente, não do modelo: quando já foi escolhido, ele permanece.
@@ -170,14 +206,14 @@
   }
 
   /* ---------- salvamento ---------- */
-  function gravar() { estado.savedAt = Date.now(); localStorage.setItem(CHAVE, JSON.stringify(estado)); }
+  function gravar() { estado.drafts = Object.fromEntries(rascunhos); estado.context = { seg, lado, bilateral, mecanismo, regionId, extras:clone(extras), tplSel }; estado.contexts=estado.contexts||{}; if(tplSel && (usarRascunho || !rascunhos.has(tplSel)))estado.contexts[tplSel]=clone(estado.context); estado.savedAt = Date.now(); localStorage.setItem(CHAVE, JSON.stringify(estado)); }
   function pintarStatus() {
     $("salvo").textContent = sujo ? "Salvando…" : (estado.savedAt ? "Salvo às " + hora(estado.savedAt) : "Salvo neste navegador");
     $("pt").classList.toggle("pend", sujo);
   }
   function salvarJa() {
     clearTimeout(timerSalvar); timerSalvar = null;
-    try { gravar(); sujo = false; } catch (_) { aviso("Não foi possível salvar. Exporte seus modelos para conservar as alterações."); }
+    try { gravar(); sujo = false; } catch (_) { sujo = true; aviso("Não foi possível salvar. Exporte seus modelos para conservar as alterações."); }
     pintarStatus();
     if (sujo) $("salvo").textContent = 'Não salvo · exporte uma cópia';
     return !sujo;
@@ -192,7 +228,7 @@
   }
 
   /* ---------- texto ---------- */
-  function nomeSeg() {
+  function nomeSegUnico() {
     if (!seg) return null;
     const g = SEG[seg]; let n = g.nome;
     if (g.lat) {
@@ -201,22 +237,36 @@
     }
     return n.toUpperCase();
   }
+  function contexts() { extras.forEach(c=>{if(!c.id)c.id=uid('region');}); return [ ...(seg ? [{id:regionId,seg,lado,bilateral}] : []), ...extras ]; }
+  function segmentName(c) {
+    const g = SEG[c.seg];
+    return (g.nome + (g.lat ? (c.bilateral ? (g.gen === 'f' ? ' direita e esquerda' : ' direito e esquerdo') : c.lado ? (c.lado === 'D' ? (g.gen === 'f' ? ' direita' : ' direito') : (g.gen === 'f' ? ' esquerda' : ' esquerdo')) : '') : '')).toUpperCase();
+  }
+  function joinRegions(parts) { return parts.length < 2 ? parts.join('') : parts.slice(0,-1).join(', ') + ' E ' + parts[parts.length-1]; }
+  function nomeSeg() { return joinRegions(contexts().map(segmentName)); }
+  function regionPhrase(kind) { return joinRegions(contexts().map(c => {
+    const female = SEG[c.seg].gen === 'f';
+    return (kind === 'no' ? (female ? 'NA' : 'NO') : kind === 'do' ? (female ? 'DA' : 'DO') : (female ? 'À' : 'AO')) + ' ' + segmentName(c);
+  })); }
   function preencher(txt) {
     let r = txt;
     const n = nomeSeg();
     if (n) {
-      const g = SEG[seg];
-      const a = g.gen === "f" ? { do: "DA", no: "NA", ao: "À" } : { do: "DO", no: "NO", ao: "AO" };
-      r = r.replace(/\{\{DO_SEG\}\}/g, `${a.do} ${n}`).replace(/\{\{NO_SEG\}\}/g, `${a.no} ${n}`)
-           .replace(/\{\{AO_SEG\}\}/g, `${a.ao} ${n}`).replace(/\{\{SEG\}\}/g, n);
+      r = r.replace(/\{\{DO_SEG\}\}/g, regionPhrase("do")).replace(/\{\{NO_SEG\}\}/g, regionPhrase("no"))
+           .replace(/\{\{AO_SEG\}\}/g, regionPhrase("ao")).replace(/\{\{SEG\}\}/g, n);
     }
     if (mecanismo) r = r.replace(/\{\{APOS_MEC\}\}/g, "APÓS " + mecanismo.toUpperCase());
     return r;
   }
-  function valores() { return Object.fromEntries(VARIAVEIS.map(([v]) => [v, preencher(v)])); }
+  function valores(block) {
+    const values=Object.fromEntries(VARIAVEIS.map(([v]) => [v, preencher(v)]));
+    if(block?.regionContext){const c=block.regionContext,n=segmentName(c),female=SEG[c.seg]?.gen==='f';Object.assign(values,{'{{SEG}}':n,'{{NO_SEG}}':(female?'NA ':'NO ')+n,'{{DO_SEG}}':(female?'DA ':'DO ')+n,'{{AO_SEG}}':(female?'À ':'AO ')+n});}
+    return values;
+  }
+  function preencherBloco(block){return DocCore.render(block.content,valores(block));}
   function faltas(text) {
     const list = [];
-    if (usaSeg(tplAtual()) && !fixoDe(tplAtual()) && (!seg || (temLado(seg) && !lado && !bilateral))) list.push(!seg ? 'região' : 'lateralidade');
+    if (usaSeg(tplAtual()) && !fixoDe(tplAtual()) && (!seg || contexts().some(c => temLado(c.seg) && !c.lado && !c.bilateral))) list.push(!seg ? 'região' : 'lateralidade');
     if (/\{\{APOS_MEC\}\}/.test(text)) list.push('mecanismo de trauma');
     if (/\{\{[A-Z_]+\}\}/.test(text) && !list.length) list.push('campos do modelo');
     return list;
@@ -226,8 +276,8 @@
     if (missing.length) { aviso('Preencha: ' + missing.join(', ') + '.'); return; }
     try { await navigator.clipboard.writeText(text); }
     catch (_) { aviso('A cópia foi bloqueada. Selecione o texto e use Ctrl+C.'); return; }
-    const label = button.textContent; button.textContent = '✓ Copiado';
-    setTimeout(() => button.textContent = label, 1400);
+    const label = button.dataset.copyLabel || button.textContent; button.textContent = '✓ Copiado';
+    clearTimeout(button.copyTimer); button.copyTimer = setTimeout(() => button.textContent = button.dataset.copyLabel || label, 1400);
   }
   const temVar = t => t.blocks.some(b => /\{\{[A-Z_]+\}\}/.test(b.content));
 
@@ -271,35 +321,52 @@
   }
 
   /* ---------- painel 1 ---------- */
-  const casa = (t, q) => DocCore.matches(t.title + ' ' + t.blocks.map(b => b.title + ' ' + b.content).join(' '), q);
+  // Filtra pelo título completo, em qualquer posição e a cada letra digitada.
+  // Ex.: "cortocontuso" encontra "FERIMENTO CORTOCONTUSO".
+  const casa = (t, q) => DocCore.matches(t.title, q);
+  function voltarAoEstadoInicial(secId = null) {
+    if (sujo && !salvarJa()) return false;
+    editando = false;
+    tplSel = null;
+    seg = null; lado = null; bilateral = false; mecanismo = '';
+    extras = []; regionId = uid('region'); vista = 'frente';
+    usarRascunho = false; window.DocHasDrafts = rascunhos.size > 0;
+    abaAberta = secId;
+    buscaAba = '';
+    $('app').classList.remove('anatomy-open');
+    $('modelActions').open = false;
+    return true;
+  }
+  function abrirAba(secId) {
+    if (!voltarAoEstadoInicial(secId)) return;
+    $('gs').value = ''; filtro = 'all';
+    focarBusca = true;
+    pintaNav(); pintaTudo();
+  }
   function ordenados(m) {
     return [...m.templates].sort((a, b) =>
       (estado.usage[b.id] || 0) - (estado.usage[a.id] || 0) || a.title.localeCompare(b.title, "pt-BR"));
   }
   function pintaNav() {
-    const nav = $("nav"); nav.replaceChildren();
+    const nav = $("nav");
+    const settings = $("settingsSection");
+    nav.replaceChildren();
     const q = $("gs").value.trim();
     if (q || filtro !== 'all') {
       const hits = estado.sections.flatMap(s => s.templates.filter(t => casa(t, q) && (filtro === 'all' || (filtro === 'favorites' ? estado.favorites : estado.recent).includes(t.id))).map(t => ({ s, t })));
       hits.sort((a,b) => filtro === 'recent' ? estado.recent.indexOf(a.t.id) - estado.recent.indexOf(b.t.id) : Number(DocCore.matches(b.t.title,q)) - Number(DocCore.matches(a.t.title,q)));
       const h = document.createElement("div"); h.className = "grp";
       h.textContent = filtro === 'favorites' ? 'FAVORITOS' : filtro === 'recent' ? 'RECENTES' : 'RESULTADOS';
-      nav.append(h);
+      h.textContent += ' · ' + hits.length; nav.append(h);
       const cx = document.createElement("div"); cx.className = "hits";
       hits.forEach(({ s, t }) => {
         const b = document.createElement("button"); b.className = "hit";
         b.innerHTML = `${esc(t.title)}<small>${esc(s.label)}</small>`;
-        if (q) {
-          const content = t.blocks.map(x => x.content).join(' ').replace(/\s+/g,' ');
-          const at = Math.max(0, norm(content).indexOf(norm(q).split(/\s+/)[0]));
-          const excerpt = document.createElement('small'); excerpt.className = 'search-excerpt';
-          excerpt.textContent = (at > 24 ? '…' : '') + content.slice(Math.max(0,at-24),at+100) + '…'; b.append(excerpt);
-        }
-        b.onclick = () => { abrirModelo(s.id, t.id); };
+        b.onclick = (event) => { event.preventDefault(); event.stopPropagation(); abrirModelo(s.id, t.id); };
         cx.append(b);
       });
       if (!hits.length) { const e = document.createElement("div"); e.className = "vazio-l"; e.textContent = "Nenhum resultado."; cx.append(e); }
-      nav.append(cx); return;
+      nav.append(cx, settings); return;
     }
     if (abaAberta) nav.append(caixaAba(abaAberta));
     GRUPOS.forEach(([rot, ids]) => {
@@ -310,14 +377,15 @@
         const m = mod(id);
         const b = document.createElement("button"); b.className = "mod";
         b.innerHTML = `<span>${esc(m.label.toUpperCase())}</span><b>›</b>`;
-        b.onclick = () => { abaAberta = id; buscaAba = ""; focarBusca = true; pintaNav(); };
+        b.onclick = () => abrirAba(id);
         nav.append(b);
       });
     });
     estado.sections.filter(m => !GRUPOS.some(([, ids]) => ids.includes(m.id)) && m.id !== abaAberta).forEach(m => {
       const b = document.createElement('button'); b.className = 'mod'; b.textContent = m.label;
-      b.onclick = () => { abaAberta = m.id; buscaAba = ''; focarBusca = true; pintaNav(); }; nav.append(b);
+      b.onclick = () => abrirAba(m.id); nav.append(b);
     });
+    nav.append(settings);
   }
   function caixaAba(id) {
     const m = mod(id);
@@ -326,12 +394,12 @@
     const nm = document.createElement("div"); nm.className = "nome";
     const sp = document.createElement("span"); sp.textContent = m.label.toUpperCase();
     const fx = document.createElement("button"); fx.textContent = "×"; fx.setAttribute("aria-label", "Fechar aba");
-    fx.onclick = () => { abaAberta = null; pintaNav(); };
+    fx.onclick = () => { if (!voltarAoEstadoInicial()) return; pintaNav(); pintaTudo(); };
     nm.append(sp, fx);
     const del = document.createElement('button'); del.textContent = 'Excluir'; del.className = 'delete-module';
-    del.onclick = () => {
-      if (!confirm('Excluir o módulo ' + m.label + ' e seus modelos? Você poderá desfazer agora.')) return;
-      const backup = clone(estado); estado.deletedSections = [...(estado.deletedSections || []), m.id];
+    del.onclick = async () => {
+      if (!await ask('Excluir o módulo ' + m.label + ' e seus modelos? Você poderá desfazer agora.')) return;
+      salvarJa(); const backup = clone(estado); m.templates.forEach(t=>rascunhos.delete(t.id)); estado.deletedSections = [...(estado.deletedSections || []), m.id];
       estado.sections = estado.sections.filter(s => s.id !== m.id); abaAberta = null; tplSel = null; salvarJa(); pintaNav(); pintaTudo(); oferecerDesfazer(backup);
     }; nm.append(del);
     const bs = document.createElement("div"); bs.className = "abaBusca";
@@ -340,6 +408,7 @@
     inp.placeholder = `Pesquisar em ${m.label.toLowerCase()}…`;
     inp.setAttribute("aria-label", `Pesquisar em ${m.label}`); inp.value = buscaAba;
     bs.append(inp);
+    const count = document.createElement('div'); count.className='result-count'; count.setAttribute('role','status');
     const lista = document.createElement("div"); lista.className = "lista";
     const vazio = document.createElement("div"); vazio.className = "vazio-l";
     vazio.textContent = "Nada encontrado neste módulo."; vazio.hidden = true;
@@ -350,29 +419,46 @@
       if ((estado.usage[t.id] || 0) > 0 && i < 3) {
         const u = document.createElement("span"); u.className = "uso"; u.textContent = "mais usado"; x.append(u);
       }
-      x.dataset.busca = norm(t.title + " " + t.blocks.map(b => b.title + " " + b.content).join(" "));
+      x.dataset.busca = norm(t.title);
       x.setAttribute("aria-current", String(tplSel === t.id));
-      x.onclick = () => abrirModelo(m.id, t.id);
+      x.onclick = (event) => { event.preventDefault(); event.stopPropagation(); abrirModelo(m.id, t.id); };
       lista.append(x); return x;
     });
     lista.append(vazio);
     const filtra = () => {
       const q = norm(inp.value.trim()); buscaAba = inp.value;
       let n = 0; bts.forEach(b => { const ok = DocCore.matches(b.dataset.busca, q); b.hidden = !ok; if (ok) n++; });
-      vazio.hidden = n > 0;
+      vazio.hidden = n > 0; count.textContent = n + ' de ' + bts.length + ' modelos';
     };
-    inp.addEventListener("input", filtra); filtra();
-    box.append(rot, nm, bs, lista);
+    inp.addEventListener("input", filtra);
+    inp.addEventListener("search", filtra);
+    // Sair do input não altera os alvos entre pointerdown e click.
+    // A saída do painel inteiro é tratada após a interação, mais abaixo.
+    filtra();
+    box.append(rot, nm, bs, count, lista);
     if (focarBusca) { focarBusca = false; setTimeout(() => inp.focus(), 0); }
     return box;
   }
   function abrirModelo(secId, tplId) {
+    if (sujo && !salvarJa()) return;
     editando = false;
     tplSel = tplId;
+    // Cada escolha pelo menu inicia um novo roteiro. Regiões adicionais e
+    // alterações feitas apenas na visualização anterior não acompanham o
+    // próximo atendimento; personalizações feitas no modo próprio continuam
+    // pertencendo ao modelo.
+    usarRascunho = false; window.DocHasDrafts = rascunhos.size > 0;
+    $('modelActions').open = false;
+    extras=[]; regionId=uid('region'); seg=null; lado=null; bilateral=false; mecanismo=''; vista='frente';
     aplicarPadroes(tplAtual());
     estado.usage[tplId] = (estado.usage[tplId] || 0) + 1;
     estado.recent = [tplId, ...estado.recent.filter(i => i !== tplId)].slice(0, 10);
+    // Ao escolher um resultado, encerra a busca e atualiza imediatamente o
+    // documento exibido. Isso evita manter o texto do modelo anterior na tela.
+    $("gs").value = "";
+    buscaAba = "";
     abaAberta = secId; agendarSalvar(); fecharMenu(); pintaNav(); pintaTudo();
+    $('docs').scrollTop = 0;
     $("app").classList.toggle('anatomy-open', mostraCorpo(tplAtual()) && !seg);
   }
 
@@ -381,9 +467,12 @@
     const t = tplAtual();
     const mostra = mostraCorpo(t);
     $("app").classList.toggle("sem-corpo", !mostra);
-    if (!mostra) return;
+    if (!mostra) { $('palco').replaceChildren(); $('palco').dataset.view = ''; return; }
     const det = vista === "maos" || vista === "pes";
-    $("palco").innerHTML = det ? detalheSVG(vista) : corpoSVG(vista === "frente");
+    if ($('palco').dataset.view !== vista) {
+      $("palco").innerHTML = det ? detalheSVG(vista) : corpoSVG(vista === "frente");
+      $('palco').dataset.view = vista;
+    }
     $("vista").textContent = vista === "maos" ? "Mãos" : vista === "pes" ? "Pés"
                            : vista === "frente" ? "Frente" : "Verso";
     document.querySelectorAll("#vistas button").forEach(b => {
@@ -400,31 +489,75 @@
     if (m) { $("mec").value = MECANISMOS.includes(mecanismo) ? mecanismo : (mecanismo ? '__livre__' : ''); $("mecLivre").hidden = !mecanismo || MECANISMOS.includes(mecanismo); $("mecLivre").value = mecanismo; }
     marca();
   }
+  function equivalentModel(region) {
+    if(!tplAtual()?.segPadrao || !modAtual())return null;
+    return modAtual().templates.find(t=>t.id!==tplSel && t.segPadrao===region && !t.fixo);
+  }
+  function removeRegion(index) {
+    if(index===0){const first=extras.shift();regionId=first?.id||uid('region');seg=first?.seg||null;lado=first?.lado||null;bilateral=first?.bilateral||false;}
+    else extras.splice(index-1,1);
+  }
+  function addRegion(c) {
+    c.id=c.id||uid('region');
+    if(!seg){regionId=c.id;seg=c.seg;lado=c.lado||null;bilateral=!!c.bilateral;pintaTudo();agendarSalvar();return;}
+    if(!contexts().some(x=>x.seg===c.seg&&x.lado===c.lado&&x.bilateral===c.bilateral))extras.push(c);
+    pintaTudo(); agendarSalvar();
+  }
+  function toggleRegion(c) {
+    // Completa a lateralidade de uma entrada pendente, mantendo sua identidade
+    // e qualquer bloco regional editado, em vez de duplicar a região.
+    const pending = contexts().findIndex(x=>x.seg===c.seg && !x.lado && !x.bilateral);
+    if (pending >= 0 && (c.lado || c.bilateral)) {
+      if (pending === 0 && seg) { lado=c.lado||null; bilateral=!!c.bilateral; }
+      else { const target=extras[pending-(seg?1:0)]; target.lado=c.lado||null; target.bilateral=!!c.bilateral; }
+      pintaTudo(); agendarSalvar(); return;
+    }
+    // A lista sem lado refere-se à região já escolhida; não cria outra pendente.
+    if (!c.lado && !c.bilateral && contexts().some(x=>x.seg===c.seg && (x.lado || x.bilateral))) return;
+    const index=contexts().findIndex(x=>x.seg===c.seg&&x.lado===c.lado&&Boolean(x.bilateral)===Boolean(c.bilateral));
+    if(index>=0){removeRegion(index+(seg?0:1));pintaTudo();agendarSalvar();return;}
+    addRegion(c);
+  }
+  function paintRegions(){
+    const host=$('regionList'); host.replaceChildren();
+    contexts().forEach((c,index)=>{
+      const i=index+(seg?0:1);
+      const row=document.createElement('div');row.className='region-chip';
+      const name=document.createElement('span');name.textContent=segmentName(c);row.append(name);
+      if(temLado(c.seg)){
+        const select=document.createElement('select');select.setAttribute('aria-label','Lado de '+SEG[c.seg].nome);
+        [['','Lado…'],['D','Direito'],['E','Esquerdo']].forEach(([v,n])=>select.append(new Option(n,v)));
+        select.value=c.lado||'';
+        select.onchange=()=>{if(i===0){lado=select.value||null;bilateral=false;}else{extras[i-1].lado=select.value||null;extras[i-1].bilateral=false;}pintaTudo();agendarSalvar();};
+        if(!fixoDe(tplAtual()))row.append(select);
+      }
+      const remove=document.createElement('button');remove.textContent='×';remove.setAttribute('aria-label','Remover '+segmentName(c));
+      remove.onclick=()=>{removeRegion(i);pintaTudo();agendarSalvar();};
+      if(!fixoDe(tplAtual()))row.append(remove);host.append(row);
+    });
+  }
   function marca() {
-    const t = tplAtual(), fx = fixoDe(t);
+    const t = tplAtual(), fx = fixoDe(t); paintRegions();
     $("palco").classList.toggle("fixo", Boolean(fx));
     document.querySelectorAll(".reg").forEach(p => {
-      const mesmo = p.dataset.seg === seg;
-      const ok = !SEG[p.dataset.seg].lat || bilateral || !lado || p.dataset.lado === lado || p.dataset.lado === "";
-      p.classList.toggle("sel", Boolean(seg) && mesmo && ok);
+      const escolhido = contexts().some(c => c.seg === p.dataset.seg && (!SEG[c.seg].lat || c.bilateral || c.lado === p.dataset.lado));
+      p.classList.toggle("sel", escolhido);
+      p.setAttribute('aria-pressed', String(escolhido));
     });
     const n = nomeSeg();
-    $("segmentSelect").value = seg || ''; $("segmentSelect").disabled = Boolean(fx);
-    [...$('segmentSelect').options].forEach(o => o.disabled = Boolean(o.value) && !aceitaRegiao(o.value));
+    $("segmentSelect").value = ''; $("segmentSelect").disabled = Boolean(fx);
+    [...$('segmentSelect').options].forEach(o => o.disabled = Boolean(o.value) && !aceitaRegiao(o.value) && !equivalentModel(o.value));
     document.querySelectorAll('.reg').forEach(p => p.setAttribute('aria-disabled', String(Boolean(fx) || !aceitaRegiao(p.dataset.seg))));
     $("sideChoices").hidden = Boolean(fx) || !temLado(seg);
     document.querySelectorAll('[data-side]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.side === lado && !bilateral)));
     $("sel").innerHTML = n ? `Selecionado: <b>${esc(n.toLowerCase())}</b>` : "Nenhum segmento selecionado.";
-    // Coluna, pelve e tórax não têm lado: a opção bilateral não faz sentido.
-    $("bilat").hidden = Boolean(fx) || !temLado(seg);
-    $("bilat").setAttribute("aria-pressed", String(bilateral));
     $("mecwrap").hidden = Boolean(fx) || !usaMec(t);
     if (fx) {
       $("dica").textContent = "Este modelo já é deste lado. Para trocar, use o modelo do outro lado.";
     } else if (temLado(seg) && !lado && !bilateral) {
       $("dica").textContent = "Toque no lado acometido — direito à esquerda de quem olha.";
     } else {
-      $("dica").textContent = t?.segPadrao ? 'Modelo específico de ' + SEG[t.segPadrao].nome + '. Para outra região, escolha o modelo correspondente.' : "Use o mapa ou a lista. Frente e verso mantêm o lado do paciente.";
+      $("dica").textContent = "Toque nas regiões desejadas no mapa ou escolha-as na lista. Uma região destacada pode ser removida com novo toque.";
     }
   }
   $("palco").addEventListener("click", e => {
@@ -436,11 +569,10 @@
     }
     if (fixoDe(tplAtual())) { aviso("Este modelo já é de um lado definido."); return; }
     if (!aceitaRegiao(p.dataset.seg)) { aviso('Este modelo é específico de ' + SEG[tplAtual().segPadrao].nome + '. Escolha um modelo correspondente à nova região.'); return; }
-    seg = p.dataset.seg; lado = p.dataset.lado || null; bilateral = false;
+    toggleRegion({seg:p.dataset.seg,lado:p.dataset.lado||null,bilateral:false});
     // Tocar na mão ou no pé no corpo já amplia: o dedo fica a um toque.
-    const d = DETALHE[seg];
-    if (d && vista !== d) { vista = d; pintaCorpo(); pintaTexto(); return; }
-    marca(); pintaTexto();
+    const d = DETALHE[p.dataset.seg];
+    if (d && vista !== d) { vista = d; pintaCorpo(); }
   });
   $('palco').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.reg')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
   $("vistas").addEventListener("click", e => {
@@ -449,26 +581,29 @@
     vista = b.dataset.vista === "corpo" ? "frente" : b.dataset.vista;
     pintaCorpo();
   });
-  $("bilat").addEventListener("click", e => {
-    bilateral = !bilateral; e.currentTarget.setAttribute("aria-pressed", String(bilateral));
-    marca(); pintaTexto();
-  });
   $("mec").addEventListener("change", e => {
     if (e.target.value === "__livre__") { $("mecLivre").hidden = false; mecanismo = $("mecLivre").value; $("mecLivre").focus(); }
     else { $("mecLivre").hidden = true; mecanismo = e.target.value; }
-    pintaTexto();
+    pintaTexto(); agendarSalvar();
   });
-  $("mecLivre").addEventListener("input", e => { mecanismo = e.target.value; pintaTexto(); });
+  $("mecLivre").addEventListener("input", e => { mecanismo = e.target.value; pintaTexto(); agendarSalvar(); });
 
   /* ---------- painel 3 ---------- */
   function pintaTexto() {
     const t = tplAtual(), m = modAtual(), docs = $("docs");
+    const previousScroll = docs.scrollTop;
+    const previousFocus = document.activeElement;
+    const focusIndex = previousFocus?.matches?.('textarea[data-bloco]') && docs.contains(previousFocus) ? Number(previousFocus.dataset.bloco) : -1;
+    const selection = focusIndex >= 0 ? [previousFocus.selectionStart, previousFocus.selectionEnd] : null;
+    const focusRegion = selection ? previousFocus.dataset.regionKey : null;
     $("btCopiar").hidden = true; $("btVars").hidden = true; $("btRestaurar").hidden = true;
-    $("favorite").hidden = !t; $("editMode").hidden = !t;
+    $("saveAsModel").hidden = !t; $("favorite").hidden = !t; $("editMode").hidden = !t;
+    $('modelActions').hidden = !t;
+    $('recoverDraft').hidden = !t || editando || usarRascunho || !rascunhos.has(tplSel);
     $("contextBar").hidden = !mostraCorpo(t);
     $("modeNote").hidden = !t;
     $('editTools').hidden = !t || !editando;
-    $("modeNote").textContent = editando ? 'Personalizando o modelo · alterações salvas automaticamente. Mantenha as variáveis para o texto acompanhar a região.' : 'Revise o documento antes de copiar. Edições aqui ficam somente nesta sessão.';
+    $("modeNote").textContent = editando ? 'Personalização permanente · salva neste navegador. Preserve as variáveis de região.' : 'Texto deste atendimento · salvo como rascunho neste navegador. Uma nova seleção abre o modelo original.';
     $("modeNote").classList.toggle('editing', editando);
     $("editMode").textContent = editando ? 'Concluir personalização' : 'Personalizar modelo';
     $("editMode").setAttribute('aria-pressed', String(editando));
@@ -480,60 +615,76 @@
       $("olho").textContent = "—"; $("nome").textContent = "Selecione um modelo";
       docs.innerHTML = `<div class="welcome"><span class="welcome-kicker">SEU ESPAÇO CLÍNICO</span><h1>Mais presença.<br>Menos digitação.</h1><p>Encontre o modelo, ajuste a região e revise o texto.</p><button class="copiar" id="startSearch">Encontrar um modelo <kbd>Ctrl K</kbd></button><div class="welcome-modules"></div></div>`;
       $('startSearch').onclick = () => { abrirMenu(); $('gs').focus(); };
-      estado.sections.slice(0, 4).forEach(s => { const b = document.createElement('button'); b.textContent = s.label + ' ↗'; b.onclick = () => { abaAberta = s.id; focarBusca = true; abrirMenu(); pintaNav(); }; docs.querySelector('.welcome-modules').append(b); });
+      estado.sections.slice(0, 4).forEach(s => { const b = document.createElement('button'); b.textContent = s.label + ' ↗'; b.onclick = () => { abrirAba(s.id); abrirMenu(); }; docs.querySelector('.welcome-modules').append(b); });
       return;
     }
     $("olho").textContent = m.label.toUpperCase();
     $("nome").textContent = t.title;
     $("btVars").hidden = !editando;
-    $("btRestaurar").hidden = !editando || !doSeed(t.id);
-    docs.replaceChildren();
+    $("btRestaurar").hidden = !doSeed(t.id);
+    const currentBlocks = editando ? t.blocks : blocosAtuais();
+    const shape = JSON.stringify([t.id,editando,currentBlocks.map(b=>[b.title,b.regionKey||null])]);
+    const reuse = !editando && docs.dataset.shape === shape && docs.querySelectorAll('textarea').length === currentBlocks.length;
+    if (!reuse) docs.replaceChildren();
+    else docs.querySelectorAll('.aviso').forEach(el=>el.remove());
+    docs.dataset.shape = shape;
     if (usaSeg(t) && temLado(seg) && !lado && !bilateral && temVar(t)) {
       const a = document.createElement("div"); a.className = "aviso";
       a.textContent = "Falta o lado — toque no " + SEG[seg].nome + " direito ou esquerdo no mapa.";
-      docs.append(a);
+      docs.prepend(a);
     }
     if (usaMec(t) && !mecanismo && temVar(t)) {
       const a = document.createElement("div"); a.className = "aviso";
       a.textContent = "Falta escolher o mecanismo de trauma — ele aparece marcado no texto até ser definido.";
-      docs.append(a);
+      docs.prepend(a);
     }
-    (editando ? t.blocks : blocosAtuais()).forEach((b, i) => {
+    if (reuse) {
+      docs.querySelectorAll('textarea').forEach((ta,i)=>{ const value=preencherBloco(currentBlocks[i]); if(ta.value!==value){ta.value=value;auto(ta);} });
+      docs.scrollTop = previousScroll;
+      if (selection && document.activeElement === previousFocus) previousFocus.setSelectionRange(...selection);
+      $('btCopiar').hidden = false;
+      return;
+    }
+    currentBlocks.forEach((b, i) => {
       const card = document.createElement("section"); card.className = "blk";
       const bh = document.createElement("div"); bh.className = "bh";
       const sp = document.createElement("span"); sp.textContent = b.title;
       if (editando) {
         sp.contentEditable = 'plaintext-only'; sp.setAttribute('role','textbox'); sp.setAttribute('aria-label','Título da caixa ' + (i+1));
-        sp.oninput = () => { b.title = sp.textContent; t.modified = Date.now(); agendarSalvar(); };
+        sp.oninput = () => { b.title = sp.textContent; cb.textContent='COPIAR '+b.title; cb.dataset.copyLabel=cb.textContent; t.modified = Date.now(); agendarSalvar(); };
       }
-      const cb = document.createElement("button"); cb.textContent = "Copiar";
+      const cb = document.createElement("button"); cb.textContent = 'COPIAR ' + b.title; cb.dataset.copyLabel=cb.textContent;
       cb.onclick = async () => {
         const current = (editando ? tplAtual().blocks : blocosAtuais())[i];
-        await copiar(preencher(current.content), cb);
+        await copiar(preencherBloco(current), cb);
       };
       bh.append(sp, cb);
       if (editando && t.blocks.length > 1) {
         const remove = document.createElement('button'); remove.textContent = 'Excluir caixa';
-        remove.onclick = () => { if (!confirm('Excluir esta caixa de texto do modelo?')) return; t.blocks.splice(i,1); t.modified = Date.now(); salvarJa(); pintaTexto(); }; bh.append(remove);
+        remove.onclick = async () => { if (!await ask('Excluir esta caixa de texto do modelo?')) return; t.blocks.splice(i,1); t.modified = Date.now(); salvarJa(); pintaTexto(); }; bh.append(remove);
       }
       const ta = document.createElement("textarea");
-      ta.value = editando ? b.content : preencher(b.content);
+      ta.value = editando ? b.content : preencherBloco(b);
       ta.spellcheck = false;
       ta.setAttribute("aria-label", "Conteúdo de " + b.title);
       ta.dataset.bloco = String(i);
+      ta.dataset.regionKey = b.regionKey || '';
       ta.addEventListener("focus", () => { ultimoFoco = ta; });
       ta.addEventListener("input", () => {
         // Edição direta grava no modelo. Se o texto tinha variável e o usuário
         // digitou por cima, o que ele escreveu vale — é o texto dele.
         if (editando) { b.content = ta.value; t.modified = Date.now(); agendarSalvar(); }
         else {
-          const blocks = clone(blocosAtuais()); blocks[i].content = DocCore.edit(blocks[i].content, ta.value, valores());
-          rascunhos.set(tplSel, blocks); window.DocHasDrafts = true;
+          const blocks = clone(blocosAtuais()); blocks[i].content = DocCore.edit(blocks[i].content, ta.value, valores(blocks[i]));
+          rascunhos.set(tplSel, blocks); usarRascunho = true; window.DocHasDrafts = true; agendarSalvar();
+          $('recoverDraft').hidden = true;
         }
         auto(ta);
       });
       card.append(bh, ta); docs.append(card); auto(ta);
     });
+    if (selection) { const fields=[...docs.querySelectorAll('textarea')]; const next=focusRegion ? fields.find(ta=>ta.dataset.regionKey===focusRegion) : fields[focusIndex]; if(next){next.focus({preventScroll:true});next.setSelectionRange(...selection);} }
+    docs.scrollTop = previousScroll;
     $("btCopiar").hidden = false;
   }
   function auto(ta) { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 2) + "px"; }
@@ -542,12 +693,12 @@
   $("btCopiar").addEventListener("click", async e => {
     const b = e.currentTarget, t = tplAtual();
     if (!t) return;
-    const txt = (editando ? t.blocks : blocosAtuais()).map(x => preencher(x.content).trim()).filter(Boolean).join("\n\n");
+    const txt = (editando ? t.blocks : blocosAtuais()).map(x => preencherBloco(x).trim()).filter(Boolean).join("\n\n");
     await copiar(txt, b);
   });
-  $("btRestaurar").addEventListener("click", () => {
+  $("btRestaurar").addEventListener("click", async () => {
     const t = tplAtual(); const o = doSeed(t && t.id);
-    if (!o || !window.confirm("Restaurar este modelo para o conteúdo original?")) return;
+    if (!o || !await ask("Restaurar este modelo para o conteúdo original?")) return;
     const s = modAtual(); const i = s.templates.findIndex(x => x.id === t.id);
     s.templates[i] = clone(o); rascunhos.delete(tplSel); salvarJa(); aviso("Modelo restaurado."); pintaTudo();
   });
@@ -587,9 +738,9 @@
   /* ---------- exportar / importar ---------- */
   $("btExportar").addEventListener("click", () => {
     salvarJa();
-    const blob = new Blob([JSON.stringify({ app: "DocTemplate Ortopedia", format: 1, seedVersion: seed.version, exportedAt: new Date().toISOString(), state: estado }, null, 2)], { type: "application/json" });
+    const blob = new Blob([JSON.stringify({ app: "DocTemplate Ortopedia", format: 1, release: RELEASE, seedVersion: seed.version, exportedAt: new Date().toISOString(), state: estado }, null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob), a = document.createElement("a");
-    a.href = url; a.download = `doctemplate-4.0-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.json`;
+    a.href = url; a.download = `doctemplate-${RELEASE}-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.json`;
     document.body.append(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
     aviso("Arquivo exportado.");
@@ -599,18 +750,49 @@
     const f = e.target.files && e.target.files[0]; e.target.value = "";
     if (!f) return;
     const r = new FileReader();
-    r.onload = () => {
+    r.onload = async () => {
       try {
         const p = JSON.parse(String(r.result));
         const inc = p && p.state && Array.isArray(p.state.sections) ? p.state : (p && Array.isArray(p.sections) ? p : null);
         if (!inc) throw new Error("formato");
         DocCore.validate(inc);
-        estado = mesclar(inc, clone(estado)); salvarJa(); pintaNav(); pintaTudo();
+        const importedIds = new Set(inc.sections.flatMap(s=>s.templates.map(t=>t.id)));
+        const knownIds = new Set(estado.sections.flatMap(s=>s.templates.map(t=>t.id)));
+        const updated=[...importedIds].filter(id=>knownIds.has(id)).length;
+        if(!await ask('Importar '+(importedIds.size-updated)+' modelos novos e atualizar '+updated+' existentes? Os IDs iguais serão substituídos, sem cópias.')) return;
+        salvarJa();
+        const next=clone(estado);
+        next.history=(next.history||[]).concat([{at:Date.now(),sections:clone(next.sections),contexts:clone(next.contexts||{}),drafts:Object.fromEntries(rascunhos),deleted:clone(next.deleted||[]),deletedSections:clone(next.deletedSections||[])}]).slice(-5);
+        next.sections.forEach(s=>s.templates=s.templates.filter(t=>!importedIds.has(t.id)));
+        for(const section of inc.sections){let target=next.sections.find(s=>s.id===section.id);if(!target){target={id:section.id,label:section.label,templates:[]};next.sections.push(target);}target.templates.push(...clone(section.templates).map(t=>({...t,modified:Date.now()})));}
+        next.deleted=(next.deleted||[]).filter(id=>!importedIds.has(id));
+        next.deletedSections=(next.deletedSections||[]).filter(id=>!inc.sections.some(s=>s.id===id));
+        next.contexts=next.contexts||{};
+        importedIds.forEach(id=>{delete next.contexts[id];const c=inc.contexts?.[id]||(inc.context?.tplSel===id?inc.context:null);if(c)next.contexts[id]=clone(c);});
+        DocCore.validate(next); estado=next; importedIds.forEach(id=>{rascunhos.delete(id);if(inc.drafts?.[id])rascunhos.set(id,clone(inc.drafts[id]));});
+        if(abaAberta&&!mod(abaAberta))abaAberta=null;
+        if(importedIds.has(tplSel)){const c=estado.contexts[tplSel];regionId=c?.regionId||uid('region');seg=c?.seg||null;lado=c?.lado||null;bilateral=!!c?.bilateral;mecanismo=c?.mecanismo||'';extras=clone(c?.extras||[]);if(!c)aplicarPadroes(tplAtual());if(tplAtual())abaAberta=modAtual().id;}
+        salvarJa(); pintaNav(); pintaTudo();
         aviso("Arquivo importado e mesclado.");
       } catch (_) { aviso("Não reconheci este arquivo. Use um .json exportado pelo DocTemplate."); }
     };
     r.readAsText(f);
   });
+
+
+  function ask(message, initial) {
+    return new Promise(resolve => {
+      const dialog=$('actionDialog'), field=$('actionInput'), previous=document.activeElement;
+      $('actionTitle').textContent = initial === undefined ? 'Confirmar ação' : message;
+      $('actionMessage').textContent = initial === undefined ? message : '';
+      field.hidden = initial === undefined; field.value = initial ?? ''; field.setAttribute('aria-label',message);
+      const finish=value=>{ dialog.close(); resolve(value); if(previous?.isConnected) previous.focus(); };
+      $('actionCancel').onclick=()=>finish(initial===undefined?false:null);
+      $('actionForm').onsubmit=e=>{e.preventDefault();if(initial!==undefined&&!field.value.trim()){field.focus();return;}finish(initial===undefined?true:field.value.trim());};
+      dialog.oncancel=e=>{e.preventDefault();finish(initial===undefined?false:null);};
+      dialog.showModal(); (initial===undefined?$('actionCancel'):field).focus(); if(initial!==undefined)field.select();
+    });
+  }
 
   /* ---------- menu no celular ---------- */
   function abrirMenu() { $("c1").classList.add("open"); $("veu").classList.add("on"); }
@@ -618,56 +800,107 @@
   $("menuBt").addEventListener("click", abrirMenu);
   $("fechaMenu").addEventListener("click", fecharMenu);
   $("veu").addEventListener("click", fecharMenu);
-
-  $("gs").addEventListener("input", pintaNav);
-  document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => {
-    filtro = b.dataset.filter;
-    document.querySelectorAll('[data-filter]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); pintaNav();
+  $("settingsToggle").addEventListener("click", () => {
+    const panel = $("settingsPanel");
+    const aberto = panel.hidden;
+    panel.hidden = !aberto;
+    $("settingsToggle").setAttribute("aria-expanded", String(aberto));
+    $("settingsToggle").querySelector("span").textContent = aberto ? "⌄" : "›";
   });
+
+  function iniciarEscolha() {
+    if (!tplSel) return;
+    const query=buscaAba;
+    if (!voltarAoEstadoInicial(abaAberta)) return;
+    buscaAba=query;
+    // Não recria o menu: o elemento que receberá o click permanece no lugar.
+    $('nav').querySelectorAll('[aria-current]').forEach(b=>b.setAttribute('aria-current','false'));
+    pintaTudo();
+  }
+  $('c1').addEventListener('pointerdown', e=>{
+    if (e.target.closest('#settingsSection, .delete-module, #fechaMenu')) return;
+    iniciarEscolha();
+  });
+  $('c1').addEventListener('focusin', e=>{
+    if (e.target.matches('#gs, .abaBusca input')) iniciarEscolha();
+  });
+  function sairDoMenu(target) {
+    if (!target || $('c1').contains(target) || target.closest?.('#menuBt, #actionDialog, #modalVars')) return;
+    if (!abaAberta && !buscaAba && !$('gs').value) return;
+    resetMenuState(); pintaNav(); fecharMenu();
+  }
+  // Classifica a origem antes de handlers recriarem o menu. Na fase de
+  // bubbling, o botão original pode estar destacado e parecer um clique fora.
+  document.addEventListener('click', e=>sairDoMenu(e.target), true);
+  document.addEventListener('focusin', e=>{
+    if (e.target.closest?.('#c2, #c3')) sairDoMenu(e.target);
+  });
+  $('c1').addEventListener('input', e=>{ if(e.target.matches('#gs, .abaBusca input')) iniciarEscolha(); });
+  $("gs").addEventListener("input", pintaNav);
+  $("gs").addEventListener("search", pintaNav);
+  $('modelActions').addEventListener('click', e=>{ if(e.target.closest('button')) $('modelActions').open=false; });
+  document.addEventListener('click', e=>{ if(!$('modelActions').contains(e.target)) $('modelActions').open=false; });
+  $('recoverDraft').onclick = async () => {
+    if(!tplSel || usarRascunho || editando || !rascunhos.has(tplSel)) return;
+    if(!await ask('Recuperar o rascunho anterior deste modelo, incluindo as regiões? Confira se pertence ao atendimento correto.')) return;
+    const c=estado.contexts?.[tplSel];
+    seg=c?.seg||null; lado=c?.lado||null; bilateral=!!c?.bilateral; mecanismo=c?.mecanismo||'';
+    extras=clone(c?.extras||[]); regionId=c?.regionId||uid('region');
+    usarRascunho=true; pintaTudo(); agendarSalvar();
+  };
   $('favorite').onclick = () => { estado.favorites = estado.favorites.includes(tplSel) ? estado.favorites.filter(id => id !== tplSel) : [...estado.favorites, tplSel]; agendarSalvar(); pintaTexto(); pintaNav(); };
-  $('editMode').onclick = () => { if (sujo) salvarJa(); editando = !editando; if (!editando) { rascunhos.delete(tplSel); window.DocHasDrafts = rascunhos.size > 0; } pintaTudo(); };
+  $('editMode').onclick = () => { if (sujo && !salvarJa()) return; editando = !editando; if (editando) usarRascunho=false; pintaTudo(); };
   Object.entries(SEG).forEach(([id, s]) => $('segmentSelect').append(new Option(s.nome, id)));
-  $('segmentSelect').onchange = e => { seg = e.target.value || null; if (!temLado(seg)) { lado = null; bilateral = false; } if (['toracica','lombar'].includes(seg)) vista = 'verso'; else if (dedoDe(seg)) vista = dedoDe(seg); pintaTudo(); };
-  document.querySelectorAll('[data-side]').forEach(b => b.onclick = () => { lado = b.dataset.side; bilateral = false; marca(); pintaTexto(); });
+  $('segmentSelect').onchange = async e => { const selected=e.target.value; if(selected&&!aceitaRegiao(selected)){const target=equivalentModel(selected);if(target&&await ask('Trocar para o modelo '+target.title+'? Seu texto atual permanece salvo.')){abrirModelo(modAtual().id,target.id);}else marca();return;} if(!selected)return; resetMenuState(); toggleRegion({seg:selected,lado:null,bilateral:false}); if (['toracica','lombar'].includes(selected)) vista = 'verso'; else if (dedoDe(selected)) vista = dedoDe(selected); pintaNav(); pintaTudo(); };
+  document.querySelectorAll('[data-side]').forEach(b => b.onclick = () => { resetMenuState(); lado = b.dataset.side; bilateral = false; marca(); pintaNav(); pintaTexto(); agendarSalvar(); });
   $('showAnatomy').onclick = () => $('app').classList.toggle('anatomy-open');
   $('closeAnatomy').onclick = () => $('app').classList.remove('anatomy-open');
-  $('resetContext').onclick = () => {
-    if (rascunhos.size && !confirm('Limpar as seleções e os rascunhos desta sessão?')) return;
-    seg = lado = null; bilateral = false; mecanismo = ''; rascunhos.clear(); window.DocHasDrafts = false;
-    aplicarPadroes(tplAtual()); pintaTudo();
+  $('resetContext').onclick = async () => {
+    if (usarRascunho && !await ask('Limpar as seleções e voltar ao texto original? O rascunho continuará disponível em Mais ações.')) return;
+    if (sujo && !salvarJa()) return;
+    seg = lado = null; extras=[]; bilateral = false; mecanismo = ''; usarRascunho=false;
+    if(fixoDe(tplAtual()))aplicarPadroes(tplAtual());
+    pintaTudo(); salvarJa();
   };
   function oferecerDesfazer(backup) {
     const note = $('modeNote'); note.hidden = false; note.textContent = 'Módulo excluído. ';
     const b = document.createElement('button'); b.textContent = 'Desfazer'; note.append(b);
-    b.onclick = () => { estado = backup; salvarJa(); pintaNav(); pintaTudo(); };
+    b.onclick = () => { estado = backup; rascunhos.clear();Object.entries(backup.drafts||{}).forEach(([id,blocks])=>rascunhos.set(id,clone(blocks)));salvarJa(); pintaNav(); pintaTudo(); };
   }
-  $('newModule').onclick = () => {
-    const label = prompt('Nome do módulo:'); if (!label?.trim()) return;
+  $('restoreImport').onclick=async()=>{const history=estado.history||[];if(!history.length){aviso('Nenhuma importação anterior para desfazer.');return;}if(!await ask('Restaurar os modelos anteriores à última importação?'))return;const snap=history.pop();estado.sections=clone(snap.sections);estado.contexts=clone(snap.contexts||{});const c=estado.contexts[tplSel];regionId=c?.regionId||uid('region');seg=c?.seg||null;lado=c?.lado||null;bilateral=!!c?.bilateral;mecanismo=c?.mecanismo||'';extras=clone(c?.extras||[]);estado.deleted=clone(snap.deleted||[]);estado.deletedSections=clone(snap.deletedSections||[]);if(abaAberta&&!mod(abaAberta))abaAberta=null;if(!tplAtual())tplSel=null;rascunhos.clear();Object.entries(snap.drafts||{}).forEach(([id,blocks])=>rascunhos.set(id,blocks));salvarJa();pintaNav();pintaTudo();};
+  $('newModule').onclick = async () => {
+    const label = await ask('Nome do módulo:', ''); if (!label?.trim()) return;
     const id = uid('mod'); estado.sections.push({ id, label: label.trim(), templates: [] }); abaAberta = id; filtro = 'all'; $('gs').value = ''; salvarJa(); pintaNav();
   };
-  $('newTemplate').onclick = () => {
+  $('newTemplate').onclick = async () => {
     const s = mod(abaAberta) || modAtual() || estado.sections[0]; if (!s) { aviso('Crie um módulo primeiro.'); return; }
-    const title = prompt('Nome do modelo em ' + s.label + ':'); if (!title?.trim()) return;
+    const title = await ask('Nome do modelo em ' + s.label + ':', ''); if (!title?.trim()) return;
     const t = { id: uid(s.id), title: title.trim(), modified: Date.now(), blocks: [{ title: 'DOCUMENTO', content: '' }] };
     s.templates.push(t); salvarJa(); abrirModelo(s.id, t.id); editando = true; pintaTudo();
   };
-  $('renameTemplate').onclick = () => { const t = tplAtual(); const title = prompt('Nome do modelo:',t.title); if (!title?.trim()) return; t.title = title.trim(); t.modified = Date.now(); salvarJa(); pintaNav(); pintaTexto(); };
+  $('renameTemplate').onclick = async () => { const t = tplAtual(); const title = await ask('Nome do modelo:',t.title); if (!title?.trim()) return; t.title = title.trim(); t.modified = Date.now(); salvarJa(); pintaNav(); pintaTexto(); };
+  $('saveAsModel').onclick=async()=>{const current=tplAtual();if(!current)return;const title=await ask('Nome do novo modelo:',current.title+' — cópia');if(!title)return;const s=modAtual(),copy={...clone(current),id:uid(s.id),title,blocks:clone(blocosAtuais()),modified:Date.now()};s.templates.push(copy);salvarJa();estado.contexts[copy.id]={...clone(estado.contexts[current.id]||{}),tplSel:copy.id};abrirModelo(s.id,copy.id);};
   $('addBlock').onclick = () => { const t = tplAtual(); t.blocks.push({title:'NOVA CAIXA',content:''}); t.modified = Date.now(); salvarJa(); pintaTexto(); $('docs').lastElementChild.querySelector('textarea').focus(); };
-  $('deleteTemplate').onclick = () => {
-    const t = tplAtual(); if (!confirm('Excluir o modelo ' + t.title + '?')) return;
-    const backup = clone(estado); modAtual().templates = modAtual().templates.filter(x => x.id !== t.id); estado.deleted.push(t.id);
+  $('deleteTemplate').onclick = async () => {
+    const t = tplAtual(); if (!await ask('Excluir o modelo ' + t.title + '?')) return;
+    salvarJa(); const backup = clone(estado); modAtual().templates = modAtual().templates.filter(x => x.id !== t.id); estado.deleted.push(t.id);
     rascunhos.delete(t.id); tplSel = null; editando = false; salvarJa(); pintaNav(); pintaTudo(); oferecerDesfazer(backup);
   };
   window.addEventListener('offline', () => $('networkStatus').textContent = 'Modo offline');
   window.addEventListener('online', () => $('networkStatus').textContent = navigator.serviceWorker?.controller ? 'Disponível offline' : 'Conectado');
-  window.addEventListener('beforeunload', e => { if (window.DocHasDrafts) { e.preventDefault(); e.returnValue = ''; } });
+  window.addEventListener('beforeunload', () => { if(sujo)salvarJa(); });
   document.addEventListener("keydown", e => {
+    if (e.key === 'Escape' && $('modelActions').open) { $('modelActions').open=false; $('modelActions').querySelector('summary').focus(); }
     if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); abrirMenu(); $("gs").focus(); }
     if (e.key === "Escape" && !$("modalVars").hidden) $("modalVars").hidden = true;
   });
   window.addEventListener("resize", () => { $("docs").querySelectorAll("textarea").forEach(auto); });
 
   /* ---------- início ---------- */
+  // A abertura é sempre uma nova consulta: mostra a tela inicial e não repõe
+  // o documento, as regiões ou o texto da sessão anterior.
+  tplSel=null; seg=null; lado=null; bilateral=false; mecanismo=''; extras=[]; regionId=uid('region');
+  resetMenuState();
   pintaNav(); pintaTudo(); pintarStatus();
   if (estado.migradoDe !== undefined) { delete estado.migradoDe; salvarJa(); aviso("Modelos atualizados. Suas edições foram preservadas."); }
 })();
