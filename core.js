@@ -50,6 +50,19 @@
       if (state[key] !== undefined && (!Array.isArray(state[key]) || state[key].some(v => typeof v !== 'string'))) throw new Error('Lista inválida.');
     }
     if (state.usage !== undefined && (!state.usage || Array.isArray(state.usage) || typeof state.usage !== 'object' || Object.values(state.usage).some(v => !Number.isFinite(v) || v < 0))) throw new Error('Histórico inválido.');
+    if(state.drafts !== undefined) {
+      if(!state.drafts || typeof state.drafts !== 'object' || Array.isArray(state.drafts))throw new Error('Rascunhos inválidos.');
+      for(const blocks of Object.values(state.drafts))if(!Array.isArray(blocks)||blocks.some(b=>!b||typeof b.title!=='string'||typeof b.content!=='string'))throw new Error('Rascunho inválido.');
+    }
+    const checkContext = c => {
+      const regions=['cervical','toracica','lombar','pelve','torax','ombro','braco','cotovelo','antebraco','punho','mao','quadril','coxa','joelho','perna','tornozelo','pe',...Array.from({length:5},(_,i)=>'mao'+(i+1)),...Array.from({length:5},(_,i)=>'pe'+(i+1))];
+      if(!c || typeof c!=='object' || (c.seg && !regions.includes(c.seg)) || (c.lado && !['D','E'].includes(c.lado)) || (c.mecanismo!==undefined && typeof c.mecanismo!=='string'))throw new Error('Contexto inválido.');
+      if(c.extras!==undefined && (!Array.isArray(c.extras)||c.extras.some(x=>!x||!regions.includes(x.seg)||(x.lado&&!['D','E'].includes(x.lado)))))throw new Error('Regiões inválidas.');
+    };
+    const blocks=state.sections.flatMap(s=>s.templates.flatMap(t=>t.blocks)).concat(Object.values(state.drafts||{}).flat());
+    blocks.forEach(b=>{if(b.regionContext)checkContext(b.regionContext);if(b.regionKey!==undefined&&typeof b.regionKey!=='string')throw new Error('Região da caixa inválida.');});
+    if(state.context)checkContext(state.context);
+    if(state.contexts!==undefined){if(!state.contexts||typeof state.contexts!=='object'||Array.isArray(state.contexts))throw new Error('Contextos inválidos.');Object.values(state.contexts).forEach(checkContext);}
     return state;
   }
   const api = { normalize, matches, render, edit, validate };
