@@ -45,3 +45,12 @@
 .region-chip,.region-chip select,.pe2 label{font-size:14px}
 .reg[aria-disabled=true]{cursor:not-allowed}
 @media(max-width:819px){.acoes3 .copiar{margin-left:0}.model-actions{margin-left:auto}}
+
+/* Atalhos de criação da biblioteca. */
+button.mk{background:transparent;flex-shrink:0;cursor:pointer}
+button.mk:hover{background:#ffffff14}
+button.mk:focus-visible,.aba .nome button:focus-visible{outline:2px solid #aee0e8;outline-offset:3px}
+.aba .nome{flex-wrap:wrap;gap:6px}
+.aba .nome>span{min-width:0;overflow-wrap:anywhere}
+.aba .nome #newTemplate{min-width:28px;min-height:32px;cursor:pointer}
+.aba .nome #newTemplate:hover{color:#fff;background:#ffffff14;border-radius:5px}
