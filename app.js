@@ -115,10 +115,44 @@
     return r;
   }
   function lerJSON(chave) { try { const value = JSON.parse(localStorage.getItem(chave)); return value ? DocCore.validate(value) : null; } catch (_) { return null; } }
+  // Correções editoriais autorizadas; preservam os dados clínicos locais.
+  function corrigirRedacaoImportada(s) {
+    for (const section of s.sections || []) for (const t of section.templates || []) {
+      if (t.id === 'rx-dor-aguda-contusao-dipirona-ibuprofeno-1') {
+        t.title = t.title.replace('ADOLECENTE SUS', 'ADOLESCENTE SUS');
+        for (const b of t.blocks) b.content = b.content.replaceAll('TOMAR 01 COMPRIMIDOS', 'TOMAR 1 COMPRIMIDO');
+      }
+      if (t.id === 'rx-sus-pediatria-paracetamol-200-mg-ml-ibuprofeno-50-mg-ml-21') {
+        if (t.blocks.some(b => b.content.includes('2. IBUPROFENO 100 MG/ML')))
+          t.title = t.title.replace('IBUPROFENO 50 MG/ML', 'IBUPROFENO 100 MG/ML');
+        for (const b of t.blocks) b.content = b.content.replaceAll('DAR  A CADA A 6HORAS', 'DAR A CADA 6 HORAS').replaceAll('DAR  A CADA 8HORAS', 'DAR A CADA 8 HORAS');
+      }
+    }
+    return s;
+  }
+  function padronizarReceitas(s) {
+    for (const section of s.sections || []) {
+      if (section.id !== 'prescricoes') continue;
+      for (const t of section.templates || []) for (const b of t.blocks || []) {
+        let text = b.content.replace(/\r\n/g, '\n');
+        text = text.replace(/^(RECEITA[^\n]*?)\s*—\s*MEDICAMENTOS DE MARCA\s*$/m, '$1');
+        text = text.replace(/^(\d+\. [^\n]+)\n\s*\n(?=(?:TOMAR|DAR|APLICAR|ADMINISTRAR|APÓS|ASPIRAR)\b)/gm, '$1\n');
+        if (t.id === 'rx-dor-aguda-marca-bexai-35-mg-miosan-5-mg-dipirona-1-g-24' && !/COMPRESSA/i.test(text)) {
+          text = text.replace(/(^ORIENTAÇÕES\s*\n)/m, '$1COMPRESSA FRIA POR 15 MIN. ALTERNADA COM 15 MIN. DE MORNA, 3X AO DIA POR 5 DIAS.\n');
+        }
+        const at = text.indexOf('\nORIENTAÇÕES\n');
+        if (at >= 0) text = text.slice(0, at) + text.slice(at).replace(/\n[ \t]*\n+/g, '\n');
+        b.content = text;
+      }
+    }
+    return s;
+  }
   function carregar() {
     const s = lerJSON(CHAVE);
     if (s && Array.isArray(s.sections)) {
       if (s.version === seed.version) return s;
+      if (s.version < 52) corrigirRedacaoImportada(s);
+      if (s.version < 53) padronizarReceitas(s);
       const m = mesclar(s); m.migradoDe = s.version; return m;
     }
     // Primeira abertura da 4.0: traz o que existir da 3.2, sem apagar o original.
@@ -395,7 +429,11 @@
     const sp = document.createElement("span"); sp.textContent = m.label.toUpperCase();
     const fx = document.createElement("button"); fx.textContent = "×"; fx.setAttribute("aria-label", "Fechar aba");
     fx.onclick = () => { if (!voltarAoEstadoInicial()) return; pintaNav(); pintaTudo(); };
-    nm.append(sp, fx);
+    const add = document.createElement('button');
+    add.type = 'button'; add.id = 'newTemplate'; add.textContent = '+';
+    add.title = 'Criar novo modelo'; add.setAttribute('aria-label', 'Criar novo modelo');
+    add.onclick = () => criarModelo(id);
+    nm.append(sp, fx, add);
     const del = document.createElement('button'); del.textContent = 'Excluir'; del.className = 'delete-module';
     del.onclick = async () => {
       if (!await ask('Excluir o módulo ' + m.label + ' e seus modelos? Você poderá desfazer agora.')) return;
@@ -818,7 +856,7 @@
     pintaTudo();
   }
   $('c1').addEventListener('pointerdown', e=>{
-    if (e.target.closest('#settingsSection, .delete-module, #fechaMenu')) return;
+    if (e.target.closest('#settingsSection, .delete-module, #fechaMenu, #newModule, #newTemplate')) return;
     iniciarEscolha();
   });
   $('c1').addEventListener('focusin', e=>{
@@ -869,11 +907,11 @@
   }
   $('restoreImport').onclick=async()=>{const history=estado.history||[];if(!history.length){aviso('Nenhuma importação anterior para desfazer.');return;}if(!await ask('Restaurar os modelos anteriores à última importação?'))return;const snap=history.pop();estado.sections=clone(snap.sections);estado.contexts=clone(snap.contexts||{});const c=estado.contexts[tplSel];regionId=c?.regionId||uid('region');seg=c?.seg||null;lado=c?.lado||null;bilateral=!!c?.bilateral;mecanismo=c?.mecanismo||'';extras=clone(c?.extras||[]);estado.deleted=clone(snap.deleted||[]);estado.deletedSections=clone(snap.deletedSections||[]);if(abaAberta&&!mod(abaAberta))abaAberta=null;if(!tplAtual())tplSel=null;rascunhos.clear();Object.entries(snap.drafts||{}).forEach(([id,blocks])=>rascunhos.set(id,blocks));salvarJa();pintaNav();pintaTudo();};
   $('newModule').onclick = async () => {
-    const label = await ask('Nome do módulo:', ''); if (!label?.trim()) return;
+    const label = await ask('Nome da nova aba/categoria:', ''); if (!label?.trim()) return;
     const id = uid('mod'); estado.sections.push({ id, label: label.trim(), templates: [] }); abaAberta = id; filtro = 'all'; $('gs').value = ''; salvarJa(); pintaNav();
   };
-  $('newTemplate').onclick = async () => {
-    const s = mod(abaAberta) || modAtual() || estado.sections[0]; if (!s) { aviso('Crie um módulo primeiro.'); return; }
+  async function criarModelo(moduleId) {
+    const s = mod(moduleId); if (!s) { aviso('Selecione uma aba/categoria primeiro.'); return; }
     const title = await ask('Nome do modelo em ' + s.label + ':', ''); if (!title?.trim()) return;
     const t = { id: uid(s.id), title: title.trim(), modified: Date.now(), blocks: [{ title: 'DOCUMENTO', content: '' }] };
     s.templates.push(t); salvarJa(); abrirModelo(s.id, t.id); editando = true; pintaTudo();
