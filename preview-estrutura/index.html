@@ -1,0 +1,144 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="theme-color" content="#0d2033" />
+<meta name="description" content="DocTemplate — seu espaço de modelos clínicos ortopédicos. Encontre, personalize e copie." />
+<title>DocTemplate · TESTE Estruturas</title>
+
+
+
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="DocTemplate" />
+<link rel="stylesheet" href="styles.css?v=4.12.2-estrutura-1" />
+</head>
+<body>
+<div class="app" id="app">
+
+  <section class="col c1" id="c1">
+    <div class="brand">
+      <button type="button" class="mk" id="newModule" aria-label="Criar nova aba/categoria" title="Criar nova aba/categoria">+</button>
+      <div><strong>DocTemplate</strong><span>ORTOPEDIA · TESTE ESTRUTURAS</span></div>
+      <button class="fecha-menu" id="fechaMenu" aria-label="Fechar menu">×</button>
+    </div>
+    <div class="gsearch">
+      <span class="ic" aria-hidden="true">⌕</span>
+      <input id="gs" type="search" placeholder="Buscar em todos os módulos…" aria-label="Buscar em todos os módulos" autocomplete="off" />
+      <kbd>Ctrl K</kbd>
+    </div>
+    <nav class="nav" id="nav" aria-label="Módulos clínicos">
+    <section id="settingsSection" class="settings" aria-label="Configurações">
+      <button id="settingsToggle" class="settings-toggle" aria-expanded="false">⚙ Configurações <span>›</span></button>
+      <div id="settingsPanel" class="settings-panel" hidden>
+        <div class="acoes biblioteca-arquivos" aria-label="Arquivos da biblioteca">
+          <button id="btExportar" title="Baixa um arquivo .json com seus modelos e edições">⇩ Exportar</button>
+          <button id="btImportar" title="Lê um arquivo .json exportado antes">⇧ Importar</button>
+          <input id="arquivo" type="file" accept=".json,application/json" hidden />
+        </div>
+        <button id="restoreImport" class="opt">Desfazer última importação</button>
+      </div>
+    </section>
+    </nav>
+    <div class="rodape">
+      <div class="status"><span class="pt" id="pt"></span><span id="salvo">Salvo neste navegador</span></div>
+    </div>
+  </section>
+
+  <section class="col c2" id="c2">
+    <div class="cab">
+      <h2>Segmento</h2>
+      <span class="vista" id="vista">Frente</span><button class="opt" id="closeAnatomy" aria-label="Voltar ao documento">×</button>
+    </div>
+    <div class="palco" id="palco"></div>
+    <div class="vistas" id="vistas" role="group" aria-label="Como ver o corpo">
+      <button type="button" data-vista="corpo" aria-pressed="true">Corpo</button>
+      <button type="button" data-vista="verso" aria-pressed="false">Verso</button>
+      <button type="button" data-vista="maos" aria-pressed="false">Mãos</button>
+      <button type="button" data-vista="pes" aria-pressed="false">Pés</button>
+    </div>
+    <div class="pe2">
+      <label for="segmentSelect">Adicionar segmento</label><select id="segmentSelect"><option value="">Selecionar segmento…</option></select>
+      <div id="sideChoices" class="side-choices" role="group" aria-label="Lateralidade"><button data-side="D">Direito</button><button data-side="E">Esquerdo</button></div>
+      <div class="sel" id="sel"></div><div id="regionList" aria-label="Regiões selecionadas"></div>
+      <div class="structure-menu" id="structureMenu" hidden aria-label="Detalhes anatômicos"></div>
+      <div class="mecwrap" id="mecwrap" hidden>
+        <label for="mec">Mecanismo de trauma</label>
+        <select id="mec"></select>
+        <input id="mecLivre" type="text" placeholder="Descreva o mecanismo" hidden aria-label="Mecanismo de trauma" />
+      </div>
+      <p class="dica" id="dica"></p>
+    </div>
+  </section>
+
+  <section class="col c3" id="c3">
+    <div class="cab3">
+      <div class="tit">
+        <div class="olho" id="olho">—</div>
+        <h2 id="nome">Selecione um modelo</h2>
+      </div>
+      <div class="acoes3">
+        <button class="copiar" id="btCopiar" hidden>COPIAR TUDO</button>
+        <details id="modelActions" class="model-actions" hidden>
+        <summary class="opt">Mais ações</summary>
+        <div class="model-actions-panel">
+        <button class="opt" id="saveAsModel" hidden>Salvar como novo modelo</button><button class="opt" id="favorite" hidden aria-label="Marcar como favorito">☆</button>
+        <button class="opt" id="editMode" hidden aria-pressed="false">Personalizar modelo</button>
+        <button class="opt" id="btVars" hidden title="Inserir variável no texto">＋ variável</button>
+        <button class="opt" id="btRestaurar" hidden>Restaurar original</button>
+        <button class="opt" id="recoverDraft" hidden>Recuperar rascunho</button>
+        </div>
+        </details>
+      </div>
+    </div>
+    <div class="context-bar" id="contextBar" hidden><button id="showAnatomy">Selecionar região</button><span id="contextSummary"></span><button id="resetContext">Limpar seleções</button></div>
+    <div class="mode-note" id="modeNote" hidden></div>
+    <div class="edit-tools" id="editTools" hidden><button id="renameTemplate">Renomear modelo</button><button id="addBlock">+ Caixa de texto</button><button id="deleteTemplate">Excluir modelo</button></div>
+    <div class="docs" id="docs"></div>
+    <div class="document-foot"><span>Modelos para revisão médica · não inclua dados identificáveis</span><span id="networkStatus">Verificando acesso offline…</span></div>
+  </section>
+
+  <button class="menu-bt" id="menuBt" aria-label="Abrir menu">☰</button>
+  <button class="veu" id="veu" aria-label="Fechar menu"></button>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="update-banner" id="updateBanner" hidden><span>Atualização disponível.</span><button id="applyUpdate" type="button">Atualizar agora</button></div>
+  <div class="modal-fundo" id="modalVars" hidden>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="varsTit">
+      <h3 id="varsTit">Inserir variável</h3>
+      <p>Clique para inserir no ponto onde o cursor estava. O aplicativo troca pelo valor escolhido no mapa.</p>
+      <div class="vgrid" id="vgrid"></div>
+      <div class="modal-acoes"><button data-fecha>Fechar</button></div>
+    </div>
+  </div>
+</div>
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").then(registro => {
+        let requested = false;
+        const offer = worker => {
+          document.getElementById('updateBanner').hidden = false;
+          document.getElementById('applyUpdate').onclick = () => {
+            if(window.DocFlush && !window.DocFlush()) return;
+            requested = true; worker.postMessage('SKIP_WAITING');
+          };
+        };
+        if(registro.waiting) offer(registro.waiting);
+        registro.addEventListener('updatefound', () => {
+          const worker=registro.installing;
+          if(worker)worker.addEventListener('statechange',()=>{if(worker.state==='installed' && navigator.serviceWorker.controller)offer(worker);});
+        });
+        navigator.serviceWorker.addEventListener('controllerchange',()=>{if(requested)window.location.reload();});
+        navigator.serviceWorker.ready.then(() => { document.getElementById("networkStatus").textContent = navigator.onLine ? "Disponível offline" : "Modo offline"; });
+      }).catch(() => { document.getElementById("networkStatus").textContent = "Offline indisponível neste navegador"; });
+    });
+  }
+</script>
+<dialog id="actionDialog" aria-labelledby="actionTitle"><form id="actionForm"><h2 id="actionTitle"></h2><p id="actionMessage"></p><input id="actionInput" autocomplete="off" maxlength="160"/><div class="dialog-actions"><button type="button" id="actionCancel">Cancelar</button><button type="submit">Confirmar</button></div></form></dialog>
+<script src="data.js?v=4.12.2-estrutura-1"></script>
+<script src="core.js?v=4.12.2-estrutura-1"></script>
+<script src="app.js?v=4.12.2-estrutura-1"></script>
+</body>
+</html>
