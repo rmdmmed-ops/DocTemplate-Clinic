@@ -10,7 +10,7 @@
   // chave: ela é a rede de segurança se for preciso voltar para a 3.2.
   const CHAVE_ANTERIOR = "doctemplate-ortopedia:3.0";
   const ATRASO_SALVAR = 250;
-  const RELEASE = "4.11.3";
+  const RELEASE = "4.12.2";
 
   const seed = window.DOCTEMPLATE_SEED;
   if (!seed || !Array.isArray(seed.sections)) {
@@ -49,11 +49,37 @@
   const DETALHE = { mao: "maos", pe: "pes" };
   const dedoDe = id => (/^mao[1-5]$/.test(id) ? "maos" : /^pe[1-5]$/.test(id) ? "pes" : null);
 
+  // Segundo nível opcional do avatar. O primeiro clique continua escolhendo
+  // apenas segmento + lado; um novo clique na mesma região abre estes detalhes.
+  // O detalhe herda a lateralidade do segmento e nunca exige uma nova escolha.
+  const ESTRUTURAS = {
+    ombro: ["clavícula", "luxação acromioclavicular", "úmero proximal", "escápula"],
+    braco: ["úmero diafisário"],
+    cotovelo: ["úmero distal", "olécrano", "cabeça do rádio", "fratura-luxação"],
+    antebraco: ["rádio", "ulna", "rádio e ulna"],
+    punho: ["rádio distal", "ulna distal", "carpo"],
+    mao: ["metacarpos", "falanges"],
+    quadril: ["colo do fêmur", "região trocantérica", "região subtrocantérica", "acetábulo"],
+    coxa: ["fêmur diafisário"],
+    joelho: ["fêmur distal", "patela", "tíbia proximal", "platô tibial"],
+    perna: ["tíbia", "fíbula", "tíbia e fíbula"],
+    tornozelo: ["tíbia distal", "fíbula distal", "maléolo medial", "maléolo lateral", "maléolo posterior"],
+    pe: ["tálus", "calcâneo", "metatarsos", "falanges"]
+  };
+  const estruturasDe = id => ESTRUTURAS[id] || [];
+
   const VARIAVEIS = [
-    ["{{SEG}}", "PÉ DIREITO", "o nome do segmento, sem preposição"],
-    ["{{NO_SEG}}", "NO PÉ DIREITO · NA MÃO DIREITA", "com em — concorda com o gênero"],
+    ["{{SEG}}", "PÉ DIREITO · OMBRO DIREITO - CLAVÍCULA", "segmento e, quando escolhido, detalhe anatômico"],
+    ["{{SEG_BASE}}", "PÉ DIREITO · OMBRO DIREITO", "somente o segmento, mesmo quando houver detalhe"],
+    ["{{DETALHE}}", "CLAVÍCULA · OLÉCRANO · PATELA", "detalhe anatômico opcional escolhido no segundo clique"],
+    ["{{NO_SEG}}", "NO PÉ DIREITO · NO OMBRO DIREITO - CLAVÍCULA", "com em — concorda com o gênero"],
+    ["{{NO_SEG_BASE}}", "NO OMBRO DIREITO", "com em, usando apenas o segmento base"],
+    ["{{DO_SEG_BASE}}", "DO OMBRO DIREITO", "com de, usando apenas o segmento base"],
+    ["{{AO_SEG_BASE}}", "AO OMBRO DIREITO", "com a, usando apenas o segmento base"],
     ["{{DO_SEG}}", "DO PÉ DIREITO · DA MÃO DIREITA", "com de — concorda com o gênero"],
     ["{{AO_SEG}}", "AO PÉ DIREITO · À MÃO DIREITA", "com a — concorda com o gênero"],
+    ["{{MEMBRO}}", "MSD · MSE · MID · MIE", "membro derivado automaticamente do segmento e da lateralidade"],
+    ["{{MEMBRO_EXTENSO}}", "MEMBRO SUPERIOR DIREITO", "membro por extenso, derivado automaticamente"],
     ["{{APOS_MEC}}", "APÓS QUEDA DE ALTURA", "o mecanismo de trauma escolhido"],
   ];
 
@@ -199,14 +225,14 @@
     const general=blocks.filter(b=>!b.regionKey);
     return [...general.slice(0,1),...regional,...general.slice(1)];
   }
-  let seg = null, lado = null, bilateral = false, mecanismo = "", vista = "frente";
+  let seg = null, lado = null, bilateral = false, detalhe = null, mecanismo = "", vista = "frente";
   let extras = [], regionId=uid('region');
   let focarBusca = false, sujo = false, timerSalvar = null, timerToast = null, ultimoFoco = null;
 
   const tplAtual = () => { for (const s of estado.sections) { const t = s.templates.find(x => x.id === tplSel); if (t) return t; } return null; };
   const modAtual = () => estado.sections.find(s => s.templates.some(t => t.id === tplSel));
   const mod = id => estado.sections.find(s => s.id === id);
-  const usaSeg = t => Boolean(t && (t.usa?.segmento || t.blocks.some(b => /\{\{(?:SEG|NO_SEG|DO_SEG|AO_SEG)\}\}/.test(b.content))));
+  const usaSeg = t => Boolean(t && (t.usa?.segmento || t.blocks.some(b => /\{\{(?:SEG|SEG_BASE|DETALHE|NO_SEG|DO_SEG|AO_SEG|NO_SEG_BASE|DO_SEG_BASE|AO_SEG_BASE)\}\}/.test(b.content))));
   const usaMec = t => Boolean(t && (t.usa?.mecanismo || t.blocks.some(b => b.content.includes('{{APOS_MEC}}'))));
   // O modelo já é de um lado (ex.: "TC — COTOVELO DIREITO"): o mapa mostra e explica.
   const fixoDe = t => (t && t.fixo && SEG[t.fixo.seg]) ? t.fixo : null;
@@ -233,14 +259,14 @@
     }[t?.id];
     if (padrao && !mecanismo) mecanismo = padrao;
     const fx = fixoDe(t);
-    if (fx) { seg = fx.seg; lado = fx.lado || null; bilateral = Boolean(fx.bilateral); return; }
+    if (fx) { seg = fx.seg; lado = fx.lado || null; bilateral = Boolean(fx.bilateral); detalhe = fx.detalhe || null; return; }
     // O lado é do paciente, não do modelo: quando já foi escolhido, ele permanece.
     if (t && t.segPadrao && SEG[t.segPadrao]) seg = t.segPadrao;
     if (seg && !temLado(seg)) { lado = null; bilateral = false; }
   }
 
   /* ---------- salvamento ---------- */
-  function gravar() { estado.drafts = Object.fromEntries(rascunhos); estado.context = { seg, lado, bilateral, mecanismo, regionId, extras:clone(extras), tplSel }; estado.contexts=estado.contexts||{}; if(tplSel && (usarRascunho || !rascunhos.has(tplSel)))estado.contexts[tplSel]=clone(estado.context); estado.savedAt = Date.now(); localStorage.setItem(CHAVE, JSON.stringify(estado)); }
+  function gravar() { estado.drafts = Object.fromEntries(rascunhos); estado.context = { seg, lado, bilateral, detalhe, mecanismo, regionId, extras:clone(extras), tplSel }; estado.contexts=estado.contexts||{}; if(tplSel && (usarRascunho || !rascunhos.has(tplSel)))estado.contexts[tplSel]=clone(estado.context); estado.savedAt = Date.now(); localStorage.setItem(CHAVE, JSON.stringify(estado)); }
   function pintarStatus() {
     $("salvo").textContent = sujo ? "Salvando…" : (estado.savedAt ? "Salvo às " + hora(estado.savedAt) : "Salvo neste navegador");
     $("pt").classList.toggle("pend", sujo);
@@ -271,30 +297,55 @@
     }
     return n.toUpperCase();
   }
-  function contexts() { extras.forEach(c=>{if(!c.id)c.id=uid('region');}); return [ ...(seg ? [{id:regionId,seg,lado,bilateral}] : []), ...extras ]; }
-  function segmentName(c) {
+  function contexts() { extras.forEach(c=>{if(!c.id)c.id=uid('region');}); return [ ...(seg ? [{id:regionId,seg,lado,bilateral,detalhe}] : []), ...extras ]; }
+  function segmentBaseName(c) {
     const g = SEG[c.seg];
     return (g.nome + (g.lat ? (c.bilateral ? (g.gen === 'f' ? ' direita e esquerda' : ' direito e esquerdo') : c.lado ? (c.lado === 'D' ? (g.gen === 'f' ? ' direita' : ' direito') : (g.gen === 'f' ? ' esquerda' : ' esquerdo')) : '') : '')).toUpperCase();
   }
+  function segmentName(c) {
+    const base = segmentBaseName(c);
+    return c.detalhe ? base + " - " + String(c.detalhe).toUpperCase() : base;
+  }
+  function membroDe(c, extenso=false) {
+    const upper=/^(ombro|braco|cotovelo|antebraco|punho|mao|mao[1-5])$/.test(c.seg);
+    const lower=/^(quadril|coxa|joelho|perna|tornozelo|pe|pe[1-5])$/.test(c.seg);
+    if(!upper&&!lower) return "";
+    if(c.bilateral) return extenso ? (upper?"MEMBROS SUPERIORES":"MEMBROS INFERIORES") : (upper?"MMSS":"MMII");
+    if(!c.lado) return "";
+    if(extenso) return (upper?"MEMBRO SUPERIOR ":"MEMBRO INFERIOR ") + (c.lado==="D"?"DIREITO":"ESQUERDO");
+    return (upper?"MS":"MI") + (c.lado==="D"?"D":"E");
+  }
   function joinRegions(parts) { return parts.length < 2 ? parts.join('') : parts.slice(0,-1).join(', ') + ' E ' + parts[parts.length-1]; }
   function nomeSeg() { return joinRegions(contexts().map(segmentName)); }
-  function regionPhrase(kind) { return joinRegions(contexts().map(c => {
+  function regionPhrase(kind, baseOnly=false) { return joinRegions(contexts().map(c => {
     const female = SEG[c.seg].gen === 'f';
-    return (kind === 'no' ? (female ? 'NA' : 'NO') : kind === 'do' ? (female ? 'DA' : 'DO') : (female ? 'À' : 'AO')) + ' ' + segmentName(c);
+    return (kind === 'no' ? (female ? 'NA' : 'NO') : kind === 'do' ? (female ? 'DA' : 'DO') : (female ? 'À' : 'AO')) + ' ' + (baseOnly ? segmentBaseName(c) : segmentName(c));
   })); }
   function preencher(txt) {
     let r = txt;
+    const ctx = contexts();
     const n = nomeSeg();
+    const base = joinRegions(ctx.map(segmentBaseName));
+    const det = joinRegions(ctx.map(x => x.detalhe ? String(x.detalhe).toUpperCase() : "").filter(Boolean));
+    const membro = joinRegions(ctx.map(x=>membroDe(x)).filter(Boolean));
+    const membroExtenso = joinRegions(ctx.map(x=>membroDe(x,true)).filter(Boolean));
     if (n) {
       r = r.replace(/\{\{DO_SEG\}\}/g, regionPhrase("do")).replace(/\{\{NO_SEG\}\}/g, regionPhrase("no"))
-           .replace(/\{\{AO_SEG\}\}/g, regionPhrase("ao")).replace(/\{\{SEG\}\}/g, n);
+           .replace(/\{\{AO_SEG\}\}/g, regionPhrase("ao")).replace(/\{\{SEG\}\}/g, n)
+           .replace(/\{\{SEG_BASE\}\}/g, base)
+           .replace(/\{\{NO_SEG_BASE\}\}/g, regionPhrase("no",true))
+           .replace(/\{\{DO_SEG_BASE\}\}/g, regionPhrase("do",true))
+           .replace(/\{\{AO_SEG_BASE\}\}/g, regionPhrase("ao",true));
+      if(membro) r=r.replace(/\{\{MEMBRO\}\}/g,membro);
+      if(membroExtenso) r=r.replace(/\{\{MEMBRO_EXTENSO\}\}/g,membroExtenso);
     }
+    if (det) r = r.replace(/\{\{DETALHE\}\}/g, det);
     if (mecanismo) r = r.replace(/\{\{APOS_MEC\}\}/g, "APÓS " + mecanismo.toUpperCase());
     return r;
   }
   function valores(block) {
     const values=Object.fromEntries(VARIAVEIS.map(([v]) => [v, preencher(v)]));
-    if(block?.regionContext){const c=block.regionContext,n=segmentName(c),female=SEG[c.seg]?.gen==='f';Object.assign(values,{'{{SEG}}':n,'{{NO_SEG}}':(female?'NA ':'NO ')+n,'{{DO_SEG}}':(female?'DA ':'DO ')+n,'{{AO_SEG}}':(female?'À ':'AO ')+n});}
+    if(block?.regionContext){const c=block.regionContext,n=segmentName(c),base=segmentBaseName(c),female=SEG[c.seg]?.gen==='f';Object.assign(values,{'{{SEG}}':n,'{{SEG_BASE}}':base,'{{DETALHE}}':c.detalhe?String(c.detalhe).toUpperCase():'{{DETALHE}}','{{NO_SEG}}':(female?'NA ':'NO ')+n,'{{DO_SEG}}':(female?'DA ':'DO ')+n,'{{AO_SEG}}':(female?'À ':'AO ')+n,'{{NO_SEG_BASE}}':(female?'NA ':'NO ')+base,'{{DO_SEG_BASE}}':(female?'DA ':'DO ')+base,'{{AO_SEG_BASE}}':(female?'À ':'AO ')+base,'{{MEMBRO}}':membroDe(c)||'{{MEMBRO}}','{{MEMBRO_EXTENSO}}':membroDe(c,true)||'{{MEMBRO_EXTENSO}}'});}
     return values;
   }
   function preencherBloco(block){return DocCore.render(block.content,valores(block));}
@@ -362,7 +413,7 @@
     if (sujo && !salvarJa()) return false;
     editando = false;
     tplSel = null;
-    seg = null; lado = null; bilateral = false; mecanismo = '';
+    seg = null; lado = null; bilateral = false; detalhe = null; mecanismo = '';
     extras = []; regionId = uid('region'); vista = 'frente';
     usarRascunho = false; window.DocHasDrafts = rascunhos.size > 0;
     abaAberta = secId;
@@ -487,7 +538,7 @@
     // pertencendo ao modelo.
     usarRascunho = false; window.DocHasDrafts = rascunhos.size > 0;
     $('modelActions').open = false;
-    extras=[]; regionId=uid('region'); seg=null; lado=null; bilateral=false; mecanismo=''; vista='frente';
+    extras=[]; regionId=uid('region'); seg=null; lado=null; bilateral=false; detalhe=null; mecanismo=''; vista='frente';
     aplicarPadroes(tplAtual());
     estado.usage[tplId] = (estado.usage[tplId] || 0) + 1;
     estado.recent = [tplId, ...estado.recent.filter(i => i !== tplId)].slice(0, 10);
@@ -532,12 +583,13 @@
     return modAtual().templates.find(t=>t.id!==tplSel && t.segPadrao===region && !t.fixo);
   }
   function removeRegion(index) {
-    if(index===0){const first=extras.shift();regionId=first?.id||uid('region');seg=first?.seg||null;lado=first?.lado||null;bilateral=first?.bilateral||false;}
+    if(index===0){const first=extras.shift();regionId=first?.id||uid('region');seg=first?.seg||null;lado=first?.lado||null;bilateral=first?.bilateral||false;detalhe=first?.detalhe||null;}
     else extras.splice(index-1,1);
+    fecharEstruturas();
   }
   function addRegion(c) {
     c.id=c.id||uid('region');
-    if(!seg){regionId=c.id;seg=c.seg;lado=c.lado||null;bilateral=!!c.bilateral;pintaTudo();agendarSalvar();return;}
+    if(!seg){regionId=c.id;seg=c.seg;lado=c.lado||null;bilateral=!!c.bilateral;detalhe=c.detalhe||null;pintaTudo();agendarSalvar();return;}
     if(!contexts().some(x=>x.seg===c.seg&&x.lado===c.lado&&x.bilateral===c.bilateral))extras.push(c);
     pintaTudo(); agendarSalvar();
   }
@@ -556,12 +608,38 @@
     if(index>=0){removeRegion(index+(seg?0:1));pintaTudo();agendarSalvar();return;}
     addRegion(c);
   }
+  function setDetalhe(index, value) {
+    if(index===0 && seg) detalhe=value||null;
+    else if(index>0 && extras[index-1]) extras[index-1].detalhe=value||null;
+    fecharEstruturas(); pintaTudo(); agendarSalvar();
+  }
+  function fecharEstruturas() {
+    const host=$('structureMenu');
+    if(host){host.hidden=true;host.replaceChildren();}
+  }
+  function abrirEstruturas(index) {
+    const c=contexts()[index], opts=c?estruturasDe(c.seg):[];
+    const host=$('structureMenu');
+    if(!host || !c || !opts.length) return false;
+    host.replaceChildren(); host.hidden=false;
+    const title=document.createElement('div'); title.className='structure-title';
+    title.textContent='Detalhar '+segmentBaseName(c).toLowerCase();
+    const grid=document.createElement('div'); grid.className='structure-options';
+    const only=document.createElement('button'); only.type='button'; only.textContent='Somente '+segmentBaseName(c).toLowerCase();
+    only.className=!c.detalhe?'sel':'';
+    only.onclick=()=>setDetalhe(index,null); grid.append(only);
+    opts.forEach(opt=>{const b=document.createElement('button');b.type='button';b.textContent=opt;b.className=c.detalhe===opt?'sel':'';b.onclick=()=>setDetalhe(index,opt);grid.append(b);});
+    host.append(title,grid);
+    return true;
+  }
   function paintRegions(){
     const host=$('regionList'); host.replaceChildren();
     contexts().forEach((c,index)=>{
       const i=index+(seg?0:1);
       const row=document.createElement('div');row.className='region-chip';
-      const name=document.createElement('span');name.textContent=segmentName(c);row.append(name);
+      const name=document.createElement(estruturasDe(c.seg).length?'button':'span');name.textContent=segmentName(c);
+      if(name.tagName==='BUTTON'){name.type='button';name.className='region-name';name.title='Clique para detalhar a estrutura';name.onclick=()=>abrirEstruturas(index);}
+      row.append(name);
       if(temLado(c.seg)){
         const select=document.createElement('select');select.setAttribute('aria-label','Lado de '+SEG[c.seg].nome);
         [['','Lado…'],['D','Direito'],['E','Esquerdo']].forEach(([v,n])=>select.append(new Option(n,v)));
@@ -585,7 +663,10 @@
     const n = nomeSeg();
     $("segmentSelect").value = ''; $("segmentSelect").disabled = Boolean(fx);
     [...$('segmentSelect').options].forEach(o => o.disabled = Boolean(o.value) && !aceitaRegiao(o.value) && !equivalentModel(o.value));
-    document.querySelectorAll('.reg').forEach(p => p.setAttribute('aria-disabled', String(Boolean(fx) || !aceitaRegiao(p.dataset.seg))));
+    document.querySelectorAll('.reg').forEach(p => {
+      const fixedDetail = Boolean(fx && p.dataset.seg===fx.seg && estruturasDe(fx.seg).length && (!SEG[fx.seg].lat || fx.bilateral || p.dataset.lado===fx.lado));
+      p.setAttribute('aria-disabled', String(!fixedDetail && (Boolean(fx) || !aceitaRegiao(p.dataset.seg))));
+    });
     $("sideChoices").hidden = Boolean(fx) || !temLado(seg);
     document.querySelectorAll('[data-side]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.side === lado && !bilateral)));
     $("sel").innerHTML = n ? `Selecionado: <b>${esc(n.toLowerCase())}</b>` : "Nenhum segmento selecionado.";
@@ -595,7 +676,7 @@
     } else if (temLado(seg) && !lado && !bilateral) {
       $("dica").textContent = "Toque no lado acometido — direito à esquerda de quem olha.";
     } else {
-      $("dica").textContent = "Toque nas regiões desejadas no mapa ou escolha-as na lista. Uma região destacada pode ser removida com novo toque.";
+      $("dica").textContent = "Clique novamente na região selecionada para detalhar a estrutura óssea. Para remover, use × na região selecionada.";
     }
   }
   $("palco").addEventListener("click", e => {
@@ -605,9 +686,18 @@
       vista = vista === "frente" ? "verso" : vista === "verso" ? "frente" : "frente";
       pintaCorpo(); return;
     }
-    if (fixoDe(tplAtual())) { aviso("Este modelo já é de um lado definido."); return; }
+    const fx=fixoDe(tplAtual());
+    if (fx) {
+      const same=p.dataset.seg===fx.seg && (!SEG[fx.seg].lat || p.dataset.lado===fx.lado || fx.bilateral);
+      if(same && estruturasDe(fx.seg).length){ abrirEstruturas(0); return; }
+      aviso("Este modelo já é de um lado definido."); return;
+    }
     if (!aceitaRegiao(p.dataset.seg)) { aviso('Este modelo é específico de ' + SEG[tplAtual().segPadrao].nome + '. Escolha um modelo correspondente à nova região.'); return; }
-    toggleRegion({seg:p.dataset.seg,lado:p.dataset.lado||null,bilateral:false});
+    const side=p.dataset.lado||null;
+    const existing=contexts().findIndex(x=>x.seg===p.dataset.seg && (!SEG[x.seg].lat || x.bilateral || x.lado===side));
+    if(existing>=0 && estruturasDe(p.dataset.seg).length){ abrirEstruturas(existing); return; }
+    fecharEstruturas();
+    toggleRegion({seg:p.dataset.seg,lado:side,bilateral:false,detalhe:null});
     // Tocar na mão ou no pé no corpo já amplia: o dedo fica a um toque.
     const d = DETALHE[p.dataset.seg];
     if (d && vista !== d) { vista = d; pintaCorpo(); }
@@ -809,7 +899,7 @@
         importedIds.forEach(id=>{delete next.contexts[id];const c=inc.contexts?.[id]||(inc.context?.tplSel===id?inc.context:null);if(c)next.contexts[id]=clone(c);});
         DocCore.validate(next); estado=next; importedIds.forEach(id=>{rascunhos.delete(id);if(inc.drafts?.[id])rascunhos.set(id,clone(inc.drafts[id]));});
         if(abaAberta&&!mod(abaAberta))abaAberta=null;
-        if(importedIds.has(tplSel)){const c=estado.contexts[tplSel];regionId=c?.regionId||uid('region');seg=c?.seg||null;lado=c?.lado||null;bilateral=!!c?.bilateral;mecanismo=c?.mecanismo||'';extras=clone(c?.extras||[]);if(!c)aplicarPadroes(tplAtual());if(tplAtual())abaAberta=modAtual().id;}
+        if(importedIds.has(tplSel)){const c=estado.contexts[tplSel];regionId=c?.regionId||uid('region');seg=c?.seg||null;lado=c?.lado||null;bilateral=!!c?.bilateral;detalhe=c?.detalhe||null;mecanismo=c?.mecanismo||'';extras=clone(c?.extras||[]);if(!c)aplicarPadroes(tplAtual());if(tplAtual())abaAberta=modAtual().id;}
         salvarJa(); pintaNav(); pintaTudo();
         aviso("Arquivo importado e mesclado.");
       } catch (_) { aviso("Não reconheci este arquivo. Use um .json exportado pelo DocTemplate."); }
@@ -882,7 +972,7 @@
     if(!tplSel || usarRascunho || editando || !rascunhos.has(tplSel)) return;
     if(!await ask('Recuperar o rascunho anterior deste modelo, incluindo as regiões? Confira se pertence ao atendimento correto.')) return;
     const c=estado.contexts?.[tplSel];
-    seg=c?.seg||null; lado=c?.lado||null; bilateral=!!c?.bilateral; mecanismo=c?.mecanismo||'';
+    seg=c?.seg||null; lado=c?.lado||null; bilateral=!!c?.bilateral; detalhe=c?.detalhe||null; mecanismo=c?.mecanismo||'';
     extras=clone(c?.extras||[]); regionId=c?.regionId||uid('region');
     usarRascunho=true; pintaTudo(); agendarSalvar();
   };
@@ -896,8 +986,8 @@
   $('resetContext').onclick = async () => {
     if (usarRascunho && !await ask('Limpar as seleções e voltar ao texto original? O rascunho continuará disponível em Mais ações.')) return;
     if (sujo && !salvarJa()) return;
-    seg = lado = null; extras=[]; bilateral = false; mecanismo = ''; usarRascunho=false;
-    if(fixoDe(tplAtual()))aplicarPadroes(tplAtual());
+    seg = lado = detalhe = null; extras=[]; bilateral = false; mecanismo = ''; usarRascunho=false; fecharEstruturas();
+    if(fixoDe(tplAtual())){detalhe=null;aplicarPadroes(tplAtual());}
     pintaTudo(); salvarJa();
   };
   function oferecerDesfazer(backup) {
