@@ -663,7 +663,10 @@
     const n = nomeSeg();
     $("segmentSelect").value = ''; $("segmentSelect").disabled = Boolean(fx);
     [...$('segmentSelect').options].forEach(o => o.disabled = Boolean(o.value) && !aceitaRegiao(o.value) && !equivalentModel(o.value));
-    document.querySelectorAll('.reg').forEach(p => p.setAttribute('aria-disabled', String(Boolean(fx) || !aceitaRegiao(p.dataset.seg))));
+    document.querySelectorAll('.reg').forEach(p => {
+      const fixedDetail = Boolean(fx && p.dataset.seg===fx.seg && estruturasDe(fx.seg).length && (!SEG[fx.seg].lat || fx.bilateral || p.dataset.lado===fx.lado));
+      p.setAttribute('aria-disabled', String(!fixedDetail && (Boolean(fx) || !aceitaRegiao(p.dataset.seg))));
+    });
     $("sideChoices").hidden = Boolean(fx) || !temLado(seg);
     document.querySelectorAll('[data-side]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.side === lado && !bilateral)));
     $("sel").innerHTML = n ? `Selecionado: <b>${esc(n.toLowerCase())}</b>` : "Nenhum segmento selecionado.";
