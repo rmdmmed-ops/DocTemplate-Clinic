@@ -10,7 +10,7 @@
   // chave: ela é a rede de segurança se for preciso voltar para a 3.2.
   const CHAVE_ANTERIOR = "doctemplate-ortopedia:3.0";
   const ATRASO_SALVAR = 250;
-  const RELEASE = "4.12.0";
+  const RELEASE = "4.12.2";
 
   const seed = window.DOCTEMPLATE_SEED;
   if (!seed || !Array.isArray(seed.sections)) {
