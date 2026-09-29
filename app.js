@@ -78,6 +78,8 @@
     ["{{AO_SEG_BASE}}", "AO OMBRO DIREITO", "com a, usando apenas o segmento base"],
     ["{{DO_SEG}}", "DO PÉ DIREITO · DA MÃO DIREITA", "com de — concorda com o gênero"],
     ["{{AO_SEG}}", "AO PÉ DIREITO · À MÃO DIREITA", "com a — concorda com o gênero"],
+    ["{{MEMBRO}}", "MSD · MSE · MID · MIE", "membro derivado automaticamente do segmento e da lateralidade"],
+    ["{{MEMBRO_EXTENSO}}", "MEMBRO SUPERIOR DIREITO", "membro por extenso, derivado automaticamente"],
     ["{{APOS_MEC}}", "APÓS QUEDA DE ALTURA", "o mecanismo de trauma escolhido"],
   ];
 
@@ -304,6 +306,15 @@
     const base = segmentBaseName(c);
     return c.detalhe ? base + " - " + String(c.detalhe).toUpperCase() : base;
   }
+  function membroDe(c, extenso=false) {
+    const upper=/^(ombro|braco|cotovelo|antebraco|punho|mao|mao[1-5])$/.test(c.seg);
+    const lower=/^(quadril|coxa|joelho|perna|tornozelo|pe|pe[1-5])$/.test(c.seg);
+    if(!upper&&!lower) return "";
+    if(c.bilateral) return extenso ? (upper?"MEMBROS SUPERIORES":"MEMBROS INFERIORES") : (upper?"MMSS":"MMII");
+    if(!c.lado) return "";
+    if(extenso) return (upper?"MEMBRO SUPERIOR ":"MEMBRO INFERIOR ") + (c.lado==="D"?"DIREITO":"ESQUERDO");
+    return (upper?"MS":"MI") + (c.lado==="D"?"D":"E");
+  }
   function joinRegions(parts) { return parts.length < 2 ? parts.join('') : parts.slice(0,-1).join(', ') + ' E ' + parts[parts.length-1]; }
   function nomeSeg() { return joinRegions(contexts().map(segmentName)); }
   function regionPhrase(kind, baseOnly=false) { return joinRegions(contexts().map(c => {
@@ -316,6 +327,8 @@
     const n = nomeSeg();
     const base = joinRegions(ctx.map(segmentBaseName));
     const det = joinRegions(ctx.map(x => x.detalhe ? String(x.detalhe).toUpperCase() : "").filter(Boolean));
+    const membro = joinRegions(ctx.map(x=>membroDe(x)).filter(Boolean));
+    const membroExtenso = joinRegions(ctx.map(x=>membroDe(x,true)).filter(Boolean));
     if (n) {
       r = r.replace(/\{\{DO_SEG\}\}/g, regionPhrase("do")).replace(/\{\{NO_SEG\}\}/g, regionPhrase("no"))
            .replace(/\{\{AO_SEG\}\}/g, regionPhrase("ao")).replace(/\{\{SEG\}\}/g, n)
@@ -323,6 +336,8 @@
            .replace(/\{\{NO_SEG_BASE\}\}/g, regionPhrase("no",true))
            .replace(/\{\{DO_SEG_BASE\}\}/g, regionPhrase("do",true))
            .replace(/\{\{AO_SEG_BASE\}\}/g, regionPhrase("ao",true));
+      if(membro) r=r.replace(/\{\{MEMBRO\}\}/g,membro);
+      if(membroExtenso) r=r.replace(/\{\{MEMBRO_EXTENSO\}\}/g,membroExtenso);
     }
     if (det) r = r.replace(/\{\{DETALHE\}\}/g, det);
     if (mecanismo) r = r.replace(/\{\{APOS_MEC\}\}/g, "APÓS " + mecanismo.toUpperCase());
@@ -330,7 +345,7 @@
   }
   function valores(block) {
     const values=Object.fromEntries(VARIAVEIS.map(([v]) => [v, preencher(v)]));
-    if(block?.regionContext){const c=block.regionContext,n=segmentName(c),base=segmentBaseName(c),female=SEG[c.seg]?.gen==='f';Object.assign(values,{'{{SEG}}':n,'{{SEG_BASE}}':base,'{{DETALHE}}':c.detalhe?String(c.detalhe).toUpperCase():'{{DETALHE}}','{{NO_SEG}}':(female?'NA ':'NO ')+n,'{{DO_SEG}}':(female?'DA ':'DO ')+n,'{{AO_SEG}}':(female?'À ':'AO ')+n,'{{NO_SEG_BASE}}':(female?'NA ':'NO ')+base,'{{DO_SEG_BASE}}':(female?'DA ':'DO ')+base,'{{AO_SEG_BASE}}':(female?'À ':'AO ')+base});}
+    if(block?.regionContext){const c=block.regionContext,n=segmentName(c),base=segmentBaseName(c),female=SEG[c.seg]?.gen==='f';Object.assign(values,{'{{SEG}}':n,'{{SEG_BASE}}':base,'{{DETALHE}}':c.detalhe?String(c.detalhe).toUpperCase():'{{DETALHE}}','{{NO_SEG}}':(female?'NA ':'NO ')+n,'{{DO_SEG}}':(female?'DA ':'DO ')+n,'{{AO_SEG}}':(female?'À ':'AO ')+n,'{{NO_SEG_BASE}}':(female?'NA ':'NO ')+base,'{{DO_SEG_BASE}}':(female?'DA ':'DO ')+base,'{{AO_SEG_BASE}}':(female?'À ':'AO ')+base,'{{MEMBRO}}':membroDe(c)||'{{MEMBRO}}','{{MEMBRO_EXTENSO}}':membroDe(c,true)||'{{MEMBRO_EXTENSO}}'});}
     return values;
   }
   function preencherBloco(block){return DocCore.render(block.content,valores(block));}
