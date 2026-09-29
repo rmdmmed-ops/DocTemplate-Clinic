@@ -73,8 +73,13 @@
     ["{{SEG_BASE}}", "PÉ DIREITO · OMBRO DIREITO", "somente o segmento, mesmo quando houver detalhe"],
     ["{{DETALHE}}", "CLAVÍCULA · OLÉCRANO · PATELA", "detalhe anatômico opcional escolhido no segundo clique"],
     ["{{NO_SEG}}", "NO PÉ DIREITO · NO OMBRO DIREITO - CLAVÍCULA", "com em — concorda com o gênero"],
+    ["{{NO_SEG_BASE}}", "NO OMBRO DIREITO", "com em, usando apenas o segmento base"],
+    ["{{DO_SEG_BASE}}", "DO OMBRO DIREITO", "com de, usando apenas o segmento base"],
+    ["{{AO_SEG_BASE}}", "AO OMBRO DIREITO", "com a, usando apenas o segmento base"],
     ["{{DO_SEG}}", "DO PÉ DIREITO · DA MÃO DIREITA", "com de — concorda com o gênero"],
     ["{{AO_SEG}}", "AO PÉ DIREITO · À MÃO DIREITA", "com a — concorda com o gênero"],
+    ["{{MEMBRO}}", "MSD · MSE · MID · MIE", "membro derivado automaticamente do segmento e da lateralidade"],
+    ["{{MEMBRO_EXTENSO}}", "MEMBRO SUPERIOR DIREITO", "membro por extenso, derivado automaticamente"],
     ["{{APOS_MEC}}", "APÓS QUEDA DE ALTURA", "o mecanismo de trauma escolhido"],
   ];
 
@@ -227,7 +232,7 @@
   const tplAtual = () => { for (const s of estado.sections) { const t = s.templates.find(x => x.id === tplSel); if (t) return t; } return null; };
   const modAtual = () => estado.sections.find(s => s.templates.some(t => t.id === tplSel));
   const mod = id => estado.sections.find(s => s.id === id);
-  const usaSeg = t => Boolean(t && (t.usa?.segmento || t.blocks.some(b => /\{\{(?:SEG|SEG_BASE|DETALHE|NO_SEG|DO_SEG|AO_SEG)\}\}/.test(b.content))));
+  const usaSeg = t => Boolean(t && (t.usa?.segmento || t.blocks.some(b => /\{\{(?:SEG|SEG_BASE|DETALHE|NO_SEG|DO_SEG|AO_SEG|NO_SEG_BASE|DO_SEG_BASE|AO_SEG_BASE)\}\}/.test(b.content))));
   const usaMec = t => Boolean(t && (t.usa?.mecanismo || t.blocks.some(b => b.content.includes('{{APOS_MEC}}'))));
   // O modelo já é de um lado (ex.: "TC — COTOVELO DIREITO"): o mapa mostra e explica.
   const fixoDe = t => (t && t.fixo && SEG[t.fixo.seg]) ? t.fixo : null;
@@ -301,11 +306,20 @@
     const base = segmentBaseName(c);
     return c.detalhe ? base + " - " + String(c.detalhe).toUpperCase() : base;
   }
+  function membroDe(c, extenso=false) {
+    const upper=/^(ombro|braco|cotovelo|antebraco|punho|mao|mao[1-5])$/.test(c.seg);
+    const lower=/^(quadril|coxa|joelho|perna|tornozelo|pe|pe[1-5])$/.test(c.seg);
+    if(!upper&&!lower) return "";
+    if(c.bilateral) return extenso ? (upper?"MEMBROS SUPERIORES":"MEMBROS INFERIORES") : (upper?"MMSS":"MMII");
+    if(!c.lado) return "";
+    if(extenso) return (upper?"MEMBRO SUPERIOR ":"MEMBRO INFERIOR ") + (c.lado==="D"?"DIREITO":"ESQUERDO");
+    return (upper?"MS":"MI") + (c.lado==="D"?"D":"E");
+  }
   function joinRegions(parts) { return parts.length < 2 ? parts.join('') : parts.slice(0,-1).join(', ') + ' E ' + parts[parts.length-1]; }
   function nomeSeg() { return joinRegions(contexts().map(segmentName)); }
-  function regionPhrase(kind) { return joinRegions(contexts().map(c => {
+  function regionPhrase(kind, baseOnly=false) { return joinRegions(contexts().map(c => {
     const female = SEG[c.seg].gen === 'f';
-    return (kind === 'no' ? (female ? 'NA' : 'NO') : kind === 'do' ? (female ? 'DA' : 'DO') : (female ? 'À' : 'AO')) + ' ' + segmentName(c);
+    return (kind === 'no' ? (female ? 'NA' : 'NO') : kind === 'do' ? (female ? 'DA' : 'DO') : (female ? 'À' : 'AO')) + ' ' + (baseOnly ? segmentBaseName(c) : segmentName(c));
   })); }
   function preencher(txt) {
     let r = txt;
@@ -313,10 +327,17 @@
     const n = nomeSeg();
     const base = joinRegions(ctx.map(segmentBaseName));
     const det = joinRegions(ctx.map(x => x.detalhe ? String(x.detalhe).toUpperCase() : "").filter(Boolean));
+    const membro = joinRegions(ctx.map(x=>membroDe(x)).filter(Boolean));
+    const membroExtenso = joinRegions(ctx.map(x=>membroDe(x,true)).filter(Boolean));
     if (n) {
       r = r.replace(/\{\{DO_SEG\}\}/g, regionPhrase("do")).replace(/\{\{NO_SEG\}\}/g, regionPhrase("no"))
            .replace(/\{\{AO_SEG\}\}/g, regionPhrase("ao")).replace(/\{\{SEG\}\}/g, n)
-           .replace(/\{\{SEG_BASE\}\}/g, base);
+           .replace(/\{\{SEG_BASE\}\}/g, base)
+           .replace(/\{\{NO_SEG_BASE\}\}/g, regionPhrase("no",true))
+           .replace(/\{\{DO_SEG_BASE\}\}/g, regionPhrase("do",true))
+           .replace(/\{\{AO_SEG_BASE\}\}/g, regionPhrase("ao",true));
+      if(membro) r=r.replace(/\{\{MEMBRO\}\}/g,membro);
+      if(membroExtenso) r=r.replace(/\{\{MEMBRO_EXTENSO\}\}/g,membroExtenso);
     }
     if (det) r = r.replace(/\{\{DETALHE\}\}/g, det);
     if (mecanismo) r = r.replace(/\{\{APOS_MEC\}\}/g, "APÓS " + mecanismo.toUpperCase());
@@ -324,7 +345,7 @@
   }
   function valores(block) {
     const values=Object.fromEntries(VARIAVEIS.map(([v]) => [v, preencher(v)]));
-    if(block?.regionContext){const c=block.regionContext,n=segmentName(c),base=segmentBaseName(c),female=SEG[c.seg]?.gen==='f';Object.assign(values,{'{{SEG}}':n,'{{SEG_BASE}}':base,'{{DETALHE}}':c.detalhe?String(c.detalhe).toUpperCase():'{{DETALHE}}','{{NO_SEG}}':(female?'NA ':'NO ')+n,'{{DO_SEG}}':(female?'DA ':'DO ')+n,'{{AO_SEG}}':(female?'À ':'AO ')+n});}
+    if(block?.regionContext){const c=block.regionContext,n=segmentName(c),base=segmentBaseName(c),female=SEG[c.seg]?.gen==='f';Object.assign(values,{'{{SEG}}':n,'{{SEG_BASE}}':base,'{{DETALHE}}':c.detalhe?String(c.detalhe).toUpperCase():'{{DETALHE}}','{{NO_SEG}}':(female?'NA ':'NO ')+n,'{{DO_SEG}}':(female?'DA ':'DO ')+n,'{{AO_SEG}}':(female?'À ':'AO ')+n,'{{NO_SEG_BASE}}':(female?'NA ':'NO ')+base,'{{DO_SEG_BASE}}':(female?'DA ':'DO ')+base,'{{AO_SEG_BASE}}':(female?'À ':'AO ')+base,'{{MEMBRO}}':membroDe(c)||'{{MEMBRO}}','{{MEMBRO_EXTENSO}}':membroDe(c,true)||'{{MEMBRO_EXTENSO}}'});}
     return values;
   }
   function preencherBloco(block){return DocCore.render(block.content,valores(block));}
@@ -642,7 +663,10 @@
     const n = nomeSeg();
     $("segmentSelect").value = ''; $("segmentSelect").disabled = Boolean(fx);
     [...$('segmentSelect').options].forEach(o => o.disabled = Boolean(o.value) && !aceitaRegiao(o.value) && !equivalentModel(o.value));
-    document.querySelectorAll('.reg').forEach(p => p.setAttribute('aria-disabled', String(Boolean(fx) || !aceitaRegiao(p.dataset.seg))));
+    document.querySelectorAll('.reg').forEach(p => {
+      const fixedDetail = Boolean(fx && p.dataset.seg===fx.seg && estruturasDe(fx.seg).length && (!SEG[fx.seg].lat || fx.bilateral || p.dataset.lado===fx.lado));
+      p.setAttribute('aria-disabled', String(!fixedDetail && (Boolean(fx) || !aceitaRegiao(p.dataset.seg))));
+    });
     $("sideChoices").hidden = Boolean(fx) || !temLado(seg);
     document.querySelectorAll('[data-side]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.side === lado && !bilateral)));
     $("sel").innerHTML = n ? `Selecionado: <b>${esc(n.toLowerCase())}</b>` : "Nenhum segmento selecionado.";
@@ -662,7 +686,12 @@
       vista = vista === "frente" ? "verso" : vista === "verso" ? "frente" : "frente";
       pintaCorpo(); return;
     }
-    if (fixoDe(tplAtual())) { aviso("Este modelo já é de um lado definido."); return; }
+    const fx=fixoDe(tplAtual());
+    if (fx) {
+      const same=p.dataset.seg===fx.seg && (!SEG[fx.seg].lat || p.dataset.lado===fx.lado || fx.bilateral);
+      if(same && estruturasDe(fx.seg).length){ abrirEstruturas(0); return; }
+      aviso("Este modelo já é de um lado definido."); return;
+    }
     if (!aceitaRegiao(p.dataset.seg)) { aviso('Este modelo é específico de ' + SEG[tplAtual().segPadrao].nome + '. Escolha um modelo correspondente à nova região.'); return; }
     const side=p.dataset.lado||null;
     const existing=contexts().findIndex(x=>x.seg===p.dataset.seg && (!SEG[x.seg].lat || x.bilateral || x.lado===side));
@@ -958,7 +987,7 @@
     if (usarRascunho && !await ask('Limpar as seleções e voltar ao texto original? O rascunho continuará disponível em Mais ações.')) return;
     if (sujo && !salvarJa()) return;
     seg = lado = detalhe = null; extras=[]; bilateral = false; mecanismo = ''; usarRascunho=false; fecharEstruturas();
-    if(fixoDe(tplAtual()))aplicarPadroes(tplAtual());
+    if(fixoDe(tplAtual())){detalhe=null;aplicarPadroes(tplAtual());}
     pintaTudo(); salvarJa();
   };
   function oferecerDesfazer(backup) {
