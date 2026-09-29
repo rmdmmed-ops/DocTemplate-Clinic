@@ -1,0 +1,1005 @@
+(function () {
+  "use strict";
+
+  /* DocTemplate Ortopedia 4.9 — versão principal.
+     A 3.2 continua publicada em /3.2/ como rota de volta, e a chave dela no
+     navegador nunca é apagada. */
+  const CHAVE = "doctemplate-ortopedia:4.0";
+  // Chave da 3.0/3.1/3.2. Quem já usava o app tem as suas edições aqui, e elas
+  // precisam atravessar para a 4.0 na primeira abertura. Nunca apagamos esta
+  // chave: ela é a rede de segurança se for preciso voltar para a 3.2.
+  const CHAVE_ANTERIOR = "doctemplate-ortopedia:3.0";
+  const ATRASO_SALVAR = 250;
+  const RELEASE = "4.12.2";
+
+  const seed = window.DOCTEMPLATE_SEED;
+  if (!seed || !Array.isArray(seed.sections)) {
+    document.body.innerHTML = "<p style='padding:2rem'>Não foi possível carregar os modelos clínicos.</p>";
+    return;
+  }
+
+  const GRUPOS = [
+    ["EVOLUÇÕES", ["ps", "ambulatorio", "enfermaria", "internacao"]],
+    ["MEDICAMENTOS", ["prescricoes"]],
+    ["EXAMES DE IMAGEM", ["rnm", "tc", "usg"]],
+    ["FISIOTERAPIA E ACUPUNTURA", ["fisioterapia", "acupuntura"]],
+    ["ENCAMINHAMENTOS", ["encaminhamentos"]],
+    ["RELATÓRIOS", ["relatorios"]],
+    ["DESCRIÇÕES", ["descricoes"]],
+  ];
+
+  const MECANISMOS = ["queda da própria altura","queda de altura","acidente motociclístico",
+    "acidente automobilístico","atropelamento","trauma direto","entorse/torção","torção","esmagamento","lesão esportiva"];
+
+  // Vocabulário de segmentos validado no uso real (Agenda Cirúrgica HMTS).
+  const SEG = {};
+  const def = (id, nome, gen, lat) => { SEG[id] = { nome, gen, lat }; };
+  def("cervical","coluna cervical","f",false); def("toracica","coluna torácica","f",false);
+  def("lombar","coluna lombar","f",false); def("pelve","pelve","f",false); def("torax","tórax","m",false);
+  def("ombro","ombro","m",true); def("braco","braço","m",true); def("cotovelo","cotovelo","m",true);
+  def("antebraco","antebraço","m",true); def("punho","punho","m",true); def("mao","mão","f",true);
+  def("quadril","quadril","m",true); def("coxa","coxa","f",true); def("joelho","joelho","m",true);
+  def("perna","perna","f",true); def("tornozelo","tornozelo","m",true); def("pe","pé","m",true);
+  // Dedos: nomenclatura de prontuário — polegar e quirodáctilos, hálux e pododáctilos.
+  def("mao1","polegar","m",true);
+  for (let i = 2; i <= 5; i++) def("mao" + i, i + "º quirodáctilo", "m", true);
+  def("pe1","hálux","m",true);
+  for (let i = 2; i <= 5; i++) def("pe" + i, i + "º pododáctilo", "m", true);
+  // A qual vista de detalhe cada dedo pertence.
+  const DETALHE = { mao: "maos", pe: "pes" };
+  const dedoDe = id => (/^mao[1-5]$/.test(id) ? "maos" : /^pe[1-5]$/.test(id) ? "pes" : null);
+
+  // Segundo nível opcional do avatar. O primeiro clique continua escolhendo
+  // apenas segmento + lado; um novo clique na mesma região abre estes detalhes.
+  // O detalhe herda a lateralidade do segmento e nunca exige uma nova escolha.
+  const ESTRUTURAS = {
+    ombro: ["clavícula", "luxação acromioclavicular", "úmero proximal", "escápula"],
+    braco: ["úmero diafisário"],
+    cotovelo: ["úmero distal", "olécrano", "cabeça do rádio", "fratura-luxação"],
+    antebraco: ["rádio", "ulna", "rádio e ulna"],
+    punho: ["rádio distal", "ulna distal", "carpo"],
+    mao: ["metacarpos", "falanges"],
+    quadril: ["colo do fêmur", "região trocantérica", "região subtrocantérica", "acetábulo"],
+    coxa: ["fêmur diafisário"],
+    joelho: ["fêmur distal", "patela", "tíbia proximal", "platô tibial"],
+    perna: ["tíbia", "fíbula", "tíbia e fíbula"],
+    tornozelo: ["tíbia distal", "fíbula distal", "maléolo medial", "maléolo lateral", "maléolo posterior"],
+    pe: ["tálus", "calcâneo", "metatarsos", "falanges"]
+  };
+  const estruturasDe = id => ESTRUTURAS[id] || [];
+
+  const VARIAVEIS = [
+    ["{{SEG}}", "PÉ DIREITO · OMBRO DIREITO - CLAVÍCULA", "segmento e, quando escolhido, detalhe anatômico"],
+    ["{{SEG_BASE}}", "PÉ DIREITO · OMBRO DIREITO", "somente o segmento, mesmo quando houver detalhe"],
+    ["{{DETALHE}}", "CLAVÍCULA · OLÉCRANO · PATELA", "detalhe anatômico opcional escolhido no segundo clique"],
+    ["{{NO_SEG}}", "NO PÉ DIREITO · NO OMBRO DIREITO - CLAVÍCULA", "com em — concorda com o gênero"],
+    ["{{DO_SEG}}", "DO PÉ DIREITO · DA MÃO DIREITA", "com de — concorda com o gênero"],
+    ["{{AO_SEG}}", "AO PÉ DIREITO · À MÃO DIREITA", "com a — concorda com o gênero"],
+    ["{{APOS_MEC}}", "APÓS QUEDA DE ALTURA", "o mecanismo de trauma escolhido"],
+  ];
+
+  const clone = v => JSON.parse(JSON.stringify(v));
+  const norm = v => String(v ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const uid = p => `${p}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const $ = id => document.getElementById(id);
+  const esc = t => String(t).replace(/[&<>]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;" }[c]));
+  const hora = ts => new Date(ts).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" });
+
+  /* ---------- estado e migração (mesma lógica provada na 3.1) ---------- */
+  function novoEstado() {
+    return { version: seed.version, sections: clone(seed.sections), favorites: [], recent: [], usage: {}, deleted: [], savedAt: null };
+  }
+  function doSeed(id) {
+    for (const s of seed.sections) { const t = s.templates.find(x => x.id === id); if (t) return t; }
+    return null;
+  }
+  const difere = (a, b) => JSON.stringify(a.blocks) !== JSON.stringify(b.blocks);
+  /* Um modelo é "do usuário" quando ele criou ou editou — nunca só porque o
+     texto do seed mudou. Comparar com o seed NOVO marcaria os 244 como
+     editados e nenhuma melhoria de texto chegaria a quem já usa o app.
+     Desde a 3.1 toda edição grava `modified`; é essa a prova de autoria. */
+  function doUsuario(t, mesmaSafra) {
+    const o = doSeed(t.id);
+    if (!o) return true;                     // criado pelo usuário
+    if (t.modified) return true;             // editado por ele
+    return mesmaSafra ? difere(t, o) : false; // safra anterior sem marca: o seed novo entra
+  }
+  function mesclar(salvo, base = novoEstado()) {
+    const r = base;
+    const mesmaSafra = salvo.version === seed.version;
+    const apagados = new Set([...(r.deleted || []), ...(Array.isArray(salvo.deleted) ? salvo.deleted : [])]);
+    r.deleted = [...apagados];
+    r.deletedSections = [...new Set([...(r.deletedSections || []), ...(salvo.deletedSections || [])])];
+    (salvo.sections || []).forEach(ss => {
+      let alvo = r.sections.find(s => s.id === ss.id);
+      if (!alvo) { alvo = { ...clone(ss), templates: [] }; r.sections.push(alvo); }
+      (ss.templates || []).forEach(t => {
+        if (!t || !t.id || !Array.isArray(t.blocks)) return;
+        const owner = r.sections.find(s => s.templates.some(x => x.id === t.id));
+        const atual = owner?.templates.find(x => x.id === t.id);
+        if (owner && owner !== alvo) owner.templates = owner.templates.filter(x => x.id !== t.id);
+        const i = alvo.templates.findIndex(x => x.id === t.id);
+        if (apagados.has(t.id)) return;
+        const chosen = !atual || doUsuario(t, mesmaSafra) ? clone(t) : clone(atual);
+        if (i < 0) alvo.templates.push(chosen); else alvo.templates[i] = chosen;
+      });
+    });
+    r.sections = r.sections.filter(s => !r.deletedSections.includes(s.id));
+    r.sections.forEach(s => { s.templates = s.templates.filter(t => !apagados.has(t.id)); });
+    const conhecidos = new Set(r.sections.flatMap(s => s.templates.map(t => t.id)));
+    r.favorites = [...new Set([...(salvo.favorites || []), ...(r.favorites || [])])].filter(id => conhecidos.has(id));
+    r.recent = [...new Set([...(salvo.recent || []), ...(r.recent || [])])].filter(id => conhecidos.has(id)).slice(0, 10);
+    r.usage = Object.assign({}, r.usage || {}, salvo.usage || {});
+    Object.keys(r.usage).forEach(id => { if (!conhecidos.has(id)) delete r.usage[id]; });
+    r.drafts = clone(salvo.drafts || r.drafts || {}); r.context = clone(salvo.context || r.context || null); r.contexts=clone(salvo.contexts || r.contexts || {}); r.history = clone(salvo.history || r.history || []);
+    r.version = seed.version;
+    return r;
+  }
+  function lerJSON(chave) { try { const value = JSON.parse(localStorage.getItem(chave)); return value ? DocCore.validate(value) : null; } catch (_) { return null; } }
+  // Correções editoriais autorizadas; preservam os dados clínicos locais.
+  function corrigirRedacaoImportada(s) {
+    for (const section of s.sections || []) for (const t of section.templates || []) {
+      if (t.id === 'rx-dor-aguda-contusao-dipirona-ibuprofeno-1') {
+        t.title = t.title.replace('ADOLECENTE SUS', 'ADOLESCENTE SUS');
+        for (const b of t.blocks) b.content = b.content.replaceAll('TOMAR 01 COMPRIMIDOS', 'TOMAR 1 COMPRIMIDO');
+      }
+      if (t.id === 'rx-sus-pediatria-paracetamol-200-mg-ml-ibuprofeno-50-mg-ml-21') {
+        if (t.blocks.some(b => b.content.includes('2. IBUPROFENO 100 MG/ML')))
+          t.title = t.title.replace('IBUPROFENO 50 MG/ML', 'IBUPROFENO 100 MG/ML');
+        for (const b of t.blocks) b.content = b.content.replaceAll('DAR  A CADA A 6HORAS', 'DAR A CADA 6 HORAS').replaceAll('DAR  A CADA 8HORAS', 'DAR A CADA 8 HORAS');
+      }
+    }
+    return s;
+  }
+  function padronizarReceitas(s) {
+    for (const section of s.sections || []) {
+      if (section.id !== 'prescricoes') continue;
+      for (const t of section.templates || []) for (const b of t.blocks || []) {
+        let text = b.content.replace(/\r\n/g, '\n');
+        text = text.replace(/^(RECEITA[^\n]*?)\s*—\s*MEDICAMENTOS DE MARCA\s*$/m, '$1');
+        text = text.replace(/^(\d+\. [^\n]+)\n\s*\n(?=(?:TOMAR|DAR|APLICAR|ADMINISTRAR|APÓS|ASPIRAR)\b)/gm, '$1\n');
+        if (t.id === 'rx-dor-aguda-marca-bexai-35-mg-miosan-5-mg-dipirona-1-g-24' && !/COMPRESSA/i.test(text)) {
+          text = text.replace(/(^ORIENTAÇÕES\s*\n)/m, '$1COMPRESSA FRIA POR 15 MIN. ALTERNADA COM 15 MIN. DE MORNA, 3X AO DIA POR 5 DIAS.\n');
+        }
+        const at = text.indexOf('\nORIENTAÇÕES\n');
+        if (at >= 0) text = text.slice(0, at) + text.slice(at).replace(/\n[ \t]*\n+/g, '\n');
+        b.content = text;
+      }
+    }
+    return s;
+  }
+  function carregar() {
+    const s = lerJSON(CHAVE);
+    if (s && Array.isArray(s.sections)) {
+      if (s.version === seed.version) return s;
+      if (s.version < 52) corrigirRedacaoImportada(s);
+      if (s.version < 53) padronizarReceitas(s);
+      const m = mesclar(s); m.migradoDe = s.version; return m;
+    }
+    // Primeira abertura da 4.0: traz o que existir da 3.2, sem apagar o original.
+    const a = lerJSON(CHAVE_ANTERIOR);
+    if (a && Array.isArray(a.sections)) {
+      const m = mesclar(a);
+      m.migradoDe = a.version;
+      m.vindoDa32 = true;
+      return m;
+    }
+    return novoEstado();
+  }
+
+  let estado = carregar();
+  estado.favorites = Array.isArray(estado.favorites) ? estado.favorites : [];
+  estado.recent = Array.isArray(estado.recent) ? estado.recent : [];
+  estado.usage = estado.usage && typeof estado.usage === "object" ? estado.usage : {};
+  estado.deleted = Array.isArray(estado.deleted) ? estado.deleted : [];
+
+  let abaAberta = null, tplSel = null, buscaAba = "";
+  let filtro = 'all', editando = false;
+  function resetMenuState() {
+    abaAberta = null;
+    buscaAba = "";
+    filtro = 'all';
+    $("gs").value = "";
+    const panel = $("settingsPanel");
+    if (panel) {
+      panel.hidden = true;
+      $("settingsToggle").setAttribute("aria-expanded", "false");
+      $("settingsToggle").querySelector("span").textContent = "›";
+    }
+  }
+  const rascunhos = new Map(Object.entries(estado.drafts || {}));
+  let usarRascunho = false;
+  function blocosAtuais() {
+    const t=tplAtual(), blocks=(usarRascunho && rascunhos.get(tplSel))||t?.blocks||[];
+    if(!t?.multissegmentar)return blocks;
+    const regional=contexts().map(c=>{
+      const key=c.id;
+      const previous=blocks.find(b=>b.regionKey===key);
+      return {...(previous||{content:'EXAME FÍSICO {{DO_SEG}}:\n[Descrever os achados observados.]\n\nHIPÓTESE DIAGNÓSTICA {{NO_SEG}}:\n[Registrar a hipótese após a avaliação.]\n\nCONDUTA {{DO_SEG}}:\n[Registrar a conduta definida pelo médico.]'}),title:'AVALIAÇÃO — '+segmentName(c),regionKey:key,regionContext:clone(c)};
+    });
+    const general=blocks.filter(b=>!b.regionKey);
+    return [...general.slice(0,1),...regional,...general.slice(1)];
+  }
+  let seg = null, lado = null, bilateral = false, detalhe = null, mecanismo = "", vista = "frente";
+  let extras = [], regionId=uid('region');
+  let focarBusca = false, sujo = false, timerSalvar = null, timerToast = null, ultimoFoco = null;
+
+  const tplAtual = () => { for (const s of estado.sections) { const t = s.templates.find(x => x.id === tplSel); if (t) return t; } return null; };
+  const modAtual = () => estado.sections.find(s => s.templates.some(t => t.id === tplSel));
+  const mod = id => estado.sections.find(s => s.id === id);
+  const usaSeg = t => Boolean(t && (t.usa?.segmento || t.blocks.some(b => /\{\{(?:SEG|SEG_BASE|DETALHE|NO_SEG|DO_SEG|AO_SEG)\}\}/.test(b.content))));
+  const usaMec = t => Boolean(t && (t.usa?.mecanismo || t.blocks.some(b => b.content.includes('{{APOS_MEC}}'))));
+  // O modelo já é de um lado (ex.: "TC — COTOVELO DIREITO"): o mapa mostra e explica.
+  const fixoDe = t => (t && t.fixo && SEG[t.fixo.seg]) ? t.fixo : null;
+  const mostraCorpo = t => Boolean(t) && (usaSeg(t) || Boolean(fixoDe(t)));
+  // Regra do esqueleto apendicular: quem tem lado, pede lado.
+  const temLado = id => Boolean(id && SEG[id] && SEG[id].lat);
+  // A região é um dado do atendimento, não uma limitação do modelo. Modelos
+  // específicos continuam dando o roteiro habitual, mas podem documentar
+  // achados adicionais encontrados durante a avaliação.
+  const aceitaRegiao = id => Boolean(id && SEG[id]) && !fixoDe(tplAtual());
+  function aplicarPadroes(t) {
+    // Padrões do roteiro, inclusive para modelos já salvos em navegadores antigos.
+    // Não substitui uma escolha manual durante o atendimento.
+    const titulo = norm(t?.title || '');
+    const contusao = /\bcontusao\b|\bcortocontuso\b/.test(titulo);
+    const entorse = /\bentorse\b/.test(titulo);
+    // Identifica também modelos próprios (ex.: ENTORSE DE JOELHO), sem
+    // inferir mecanismo pela região isolada ou por dor inespecífica.
+    const porTitulo = contusao && !entorse ? 'trauma direto' : entorse && !contusao ? 'entorse/torção' : '';
+    const padrao = porTitulo || {
+      'ps-contusao-1': 'trauma direto',
+      'ps-ferimento-cortocontuso-8': 'trauma direto',
+      'ps-entorse-de-tornozelo-14': 'entorse/torção',
+    }[t?.id];
+    if (padrao && !mecanismo) mecanismo = padrao;
+    const fx = fixoDe(t);
+    if (fx) { seg = fx.seg; lado = fx.lado || null; bilateral = Boolean(fx.bilateral); detalhe = fx.detalhe || null; return; }
+    // O lado é do paciente, não do modelo: quando já foi escolhido, ele permanece.
+    if (t && t.segPadrao && SEG[t.segPadrao]) seg = t.segPadrao;
+    if (seg && !temLado(seg)) { lado = null; bilateral = false; }
+  }
+
+  /* ---------- salvamento ---------- */
+  function gravar() { estado.drafts = Object.fromEntries(rascunhos); estado.context = { seg, lado, bilateral, detalhe, mecanismo, regionId, extras:clone(extras), tplSel }; estado.contexts=estado.contexts||{}; if(tplSel && (usarRascunho || !rascunhos.has(tplSel)))estado.contexts[tplSel]=clone(estado.context); estado.savedAt = Date.now(); localStorage.setItem(CHAVE, JSON.stringify(estado)); }
+  function pintarStatus() {
+    $("salvo").textContent = sujo ? "Salvando…" : (estado.savedAt ? "Salvo às " + hora(estado.savedAt) : "Salvo neste navegador");
+    $("pt").classList.toggle("pend", sujo);
+  }
+  function salvarJa() {
+    clearTimeout(timerSalvar); timerSalvar = null;
+    try { gravar(); sujo = false; } catch (_) { sujo = true; aviso("Não foi possível salvar. Exporte seus modelos para conservar as alterações."); }
+    pintarStatus();
+    if (sujo) $("salvo").textContent = 'Não salvo · exporte uma cópia';
+    return !sujo;
+  }
+  window.DocFlush = salvarJa;
+  function agendarSalvar() { sujo = true; pintarStatus(); clearTimeout(timerSalvar); timerSalvar = setTimeout(salvarJa, ATRASO_SALVAR); }
+  window.addEventListener("beforeunload", () => { if (sujo) salvarJa(); });
+  document.addEventListener("visibilitychange", () => { if (document.hidden && sujo) salvarJa(); });
+  function aviso(msg) {
+    const t = $("toast"); t.textContent = msg; t.classList.add("on");
+    clearTimeout(timerToast); timerToast = setTimeout(() => t.classList.remove("on"), 2600);
+  }
+
+  /* ---------- texto ---------- */
+  function nomeSegUnico() {
+    if (!seg) return null;
+    const g = SEG[seg]; let n = g.nome;
+    if (g.lat) {
+      if (bilateral) n += g.gen === "f" ? " direita e esquerda" : " direito e esquerdo";
+      else if (lado) n += lado === "D" ? (g.gen === "f" ? " direita" : " direito") : (g.gen === "f" ? " esquerda" : " esquerdo");
+    }
+    return n.toUpperCase();
+  }
+  function contexts() { extras.forEach(c=>{if(!c.id)c.id=uid('region');}); return [ ...(seg ? [{id:regionId,seg,lado,bilateral,detalhe}] : []), ...extras ]; }
+  function segmentBaseName(c) {
+    const g = SEG[c.seg];
+    return (g.nome + (g.lat ? (c.bilateral ? (g.gen === 'f' ? ' direita e esquerda' : ' direito e esquerdo') : c.lado ? (c.lado === 'D' ? (g.gen === 'f' ? ' direita' : ' direito') : (g.gen === 'f' ? ' esquerda' : ' esquerdo')) : '') : '')).toUpperCase();
+  }
+  function segmentName(c) {
+    const base = segmentBaseName(c);
+    return c.detalhe ? base + " - " + String(c.detalhe).toUpperCase() : base;
+  }
+  function joinRegions(parts) { return parts.length < 2 ? parts.join('') : parts.slice(0,-1).join(', ') + ' E ' + parts[parts.length-1]; }
+  function nomeSeg() { return joinRegions(contexts().map(segmentName)); }
+  function regionPhrase(kind) { return joinRegions(contexts().map(c => {
+    const female = SEG[c.seg].gen === 'f';
+    return (kind === 'no' ? (female ? 'NA' : 'NO') : kind === 'do' ? (female ? 'DA' : 'DO') : (female ? 'À' : 'AO')) + ' ' + segmentName(c);
+  })); }
+  function preencher(txt) {
+    let r = txt;
+    const ctx = contexts();
+    const n = nomeSeg();
+    const base = joinRegions(ctx.map(segmentBaseName));
+    const det = joinRegions(ctx.map(x => x.detalhe ? String(x.detalhe).toUpperCase() : "").filter(Boolean));
+    if (n) {
+      r = r.replace(/\{\{DO_SEG\}\}/g, regionPhrase("do")).replace(/\{\{NO_SEG\}\}/g, regionPhrase("no"))
+           .replace(/\{\{AO_SEG\}\}/g, regionPhrase("ao")).replace(/\{\{SEG\}\}/g, n)
+           .replace(/\{\{SEG_BASE\}\}/g, base);
+    }
+    if (det) r = r.replace(/\{\{DETALHE\}\}/g, det);
+    if (mecanismo) r = r.replace(/\{\{APOS_MEC\}\}/g, "APÓS " + mecanismo.toUpperCase());
+    return r;
+  }
+  function valores(block) {
+    const values=Object.fromEntries(VARIAVEIS.map(([v]) => [v, preencher(v)]));
+    if(block?.regionContext){const c=block.regionContext,n=segmentName(c),base=segmentBaseName(c),female=SEG[c.seg]?.gen==='f';Object.assign(values,{'{{SEG}}':n,'{{SEG_BASE}}':base,'{{DETALHE}}':c.detalhe?String(c.detalhe).toUpperCase():'{{DETALHE}}','{{NO_SEG}}':(female?'NA ':'NO ')+n,'{{DO_SEG}}':(female?'DA ':'DO ')+n,'{{AO_SEG}}':(female?'À ':'AO ')+n});}
+    return values;
+  }
+  function preencherBloco(block){return DocCore.render(block.content,valores(block));}
+  function faltas(text) {
+    const list = [];
+    if (usaSeg(tplAtual()) && !fixoDe(tplAtual()) && (!seg || contexts().some(c => temLado(c.seg) && !c.lado && !c.bilateral))) list.push(!seg ? 'região' : 'lateralidade');
+    if (/\{\{APOS_MEC\}\}/.test(text)) list.push('mecanismo de trauma');
+    if (/\{\{[A-Z_]+\}\}/.test(text) && !list.length) list.push('campos do modelo');
+    return list;
+  }
+  async function copiar(text, button) {
+    const missing = faltas(text);
+    if (missing.length) { aviso('Preencha: ' + missing.join(', ') + '.'); return; }
+    try { await navigator.clipboard.writeText(text); }
+    catch (_) { aviso('A cópia foi bloqueada. Selecione o texto e use Ctrl+C.'); return; }
+    const label = button.dataset.copyLabel || button.textContent; button.textContent = '✓ Copiado';
+    clearTimeout(button.copyTimer); button.copyTimer = setTimeout(() => button.textContent = button.dataset.copyLabel || label, 1400);
+  }
+  const temVar = t => t.blocks.some(b => /\{\{[A-Z_]+\}\}/.test(b.content));
+
+  /* Anatomical selector. Source silhouettes: anatomy/ATTRIBUTION.md. */
+  const elipse = (cx, cy, rx, ry) => `M${cx-rx},${cy}a${rx},${ry} 0 1,0 ${2*rx},0a${rx},${ry} 0 1,0 ${-2*rx},0Z`;
+  function reg(id, ld, d) {
+    const g = SEG[id];
+    const suf = ld && g.lat ? ' ' + (ld === 'D' ? (g.gen === 'f' ? 'direita' : 'direito') : (g.gen === 'f' ? 'esquerda' : 'esquerdo')) : '';
+    return `<path role="button" tabindex="0" aria-label="${g.nome}${suf}" class="reg" data-seg="${id}" data-lado="${ld}" d="${d}"><title>${g.nome}${suf}</title></path>`;
+  }
+
+  function corpoSVG(frente) {
+    // MIT silhouette assets; overlay geometry is the functional region selector.
+    let s = `<svg viewBox="0 70 724 1310" role="group" aria-label="Corpo humano, vista ${frente ? 'anterior' : 'posterior'}"><image href="anatomy/body-${frente ? 'front' : 'back'}.svg" x="0" y="70" width="724" height="1310" aria-hidden="true"/><g class="anatomy-targets">`;
+    const regions = [ ['ombro',235,348,48,53], ['braco',216,429,31,38], ['cotovelo',198,493,31,25], ['antebraco',169,585,28,60], ['punho',136,675,27,23], ['mao',112,749,46,62], ['quadril',285,693,37,44], ['coxa',294,819,39,68], ['joelho',292,958,36,37], ['perna',287,1094,36,84], ['tornozelo',289,1237,28,26], ['pe',275,1309,40,39] ];
+    for (const [id,x,y,rx,ry] of regions) {
+      s += reg(id,frente ? 'D' : 'E',elipse(x,y,rx,ry));
+      s += reg(id,frente ? 'E' : 'D',elipse(728-x,y,rx,ry));
+    }
+    s += reg('cervical','',elipse(364,270,31,27));
+    s += reg('pelve','',elipse(364,662,43,47));
+    if(frente) s += reg('torax','',elipse(364,382,77,73));
+    else { s += reg('toracica','',elipse(364,398,36,90)); s += reg('lombar','',elipse(364,552,39,59)); }
+    return s + `</g><text class="anatomy-side" x="90" y="330">${frente ? 'D' : 'E'}</text><text class="anatomy-side" x="628" y="330">${frente ? 'E' : 'D'}</text></svg>`;
+  }
+
+  function detalheSVG(qual) {
+    const mao = qual === 'maos';
+    const base = mao ? 'mao' : 'pe';
+    const digits = mao ? [[60,741,10,12],[65,790,10,12],[83,806,10,12],[109,805,10,12],[134,784,10,12]] : [[298,1335,8,10],[279,1340,7,9],[265,1339,6,8],[252,1335,6,8],[242,1327,5,8]];
+    const crop = mao ? [40,680,128,148] : [228,1258,96,104];
+    let svg = `<svg viewBox="0 0 340 260" role="group" aria-label="${mao ? 'Mãos' : 'Pés'}, vista anterior"><text class="lado-l" x="70" y="22">D · direito</text><text class="lado-l" x="238" y="22">E · esquerdo</text>`;
+    for (const [side, x] of [['D',0],['E',174]]) {
+      const left = side === 'D', mx = cx => left ? cx : 728-cx;
+      svg += `<svg x="${x}" y="35" width="166" height="220" viewBox="${left ? crop[0] : 728-crop[0]-crop[2]} ${crop[1]} ${crop[2]} ${crop[3]}"><image href="anatomy/body-front.svg" x="0" y="70" width="724" height="1310"/><g class="detail-targets">`;
+      svg += reg(base,side,elipse(mx(mao ? 121 : 286),mao ? 726 : 1290,mao ? 22 : 23,mao ? 28 : 20));
+      digits.forEach(([cx,cy,rx,ry],i) => svg += reg(base+(i+1),side,elipse(mx(cx),cy,rx,ry)));
+      svg += '</g></svg>';
+    }
+    return svg + '</svg>';
+  }
+
+  /* ---------- painel 1 ---------- */
+  // Filtra pelo título completo, em qualquer posição e a cada letra digitada.
+  // Ex.: "cortocontuso" encontra "FERIMENTO CORTOCONTUSO".
+  const casa = (t, q) => DocCore.matches(t.title, q);
+  function voltarAoEstadoInicial(secId = null) {
+    if (sujo && !salvarJa()) return false;
+    editando = false;
+    tplSel = null;
+    seg = null; lado = null; bilateral = false; detalhe = null; mecanismo = '';
+    extras = []; regionId = uid('region'); vista = 'frente';
+    usarRascunho = false; window.DocHasDrafts = rascunhos.size > 0;
+    abaAberta = secId;
+    buscaAba = '';
+    $('app').classList.remove('anatomy-open');
+    $('modelActions').open = false;
+    return true;
+  }
+  function abrirAba(secId) {
+    if (!voltarAoEstadoInicial(secId)) return;
+    $('gs').value = ''; filtro = 'all';
+    focarBusca = true;
+    pintaNav(); pintaTudo();
+  }
+  function ordenados(m) {
+    return [...m.templates].sort((a, b) =>
+      (estado.usage[b.id] || 0) - (estado.usage[a.id] || 0) || a.title.localeCompare(b.title, "pt-BR"));
+  }
+  function pintaNav() {
+    const nav = $("nav");
+    const settings = $("settingsSection");
+    nav.replaceChildren();
+    const q = $("gs").value.trim();
+    if (q || filtro !== 'all') {
+      const hits = estado.sections.flatMap(s => s.templates.filter(t => casa(t, q) && (filtro === 'all' || (filtro === 'favorites' ? estado.favorites : estado.recent).includes(t.id))).map(t => ({ s, t })));
+      hits.sort((a,b) => filtro === 'recent' ? estado.recent.indexOf(a.t.id) - estado.recent.indexOf(b.t.id) : Number(DocCore.matches(b.t.title,q)) - Number(DocCore.matches(a.t.title,q)));
+      const h = document.createElement("div"); h.className = "grp";
+      h.textContent = filtro === 'favorites' ? 'FAVORITOS' : filtro === 'recent' ? 'RECENTES' : 'RESULTADOS';
+      h.textContent += ' · ' + hits.length; nav.append(h);
+      const cx = document.createElement("div"); cx.className = "hits";
+      hits.forEach(({ s, t }) => {
+        const b = document.createElement("button"); b.className = "hit";
+        b.innerHTML = `${esc(t.title)}<small>${esc(s.label)}</small>`;
+        b.onclick = (event) => { event.preventDefault(); event.stopPropagation(); abrirModelo(s.id, t.id); };
+        cx.append(b);
+      });
+      if (!hits.length) { const e = document.createElement("div"); e.className = "vazio-l"; e.textContent = "Nenhum resultado."; cx.append(e); }
+      nav.append(cx, settings); return;
+    }
+    if (abaAberta) nav.append(caixaAba(abaAberta));
+    GRUPOS.forEach(([rot, ids]) => {
+      const visiveis = ids.filter(id => mod(id) && id !== abaAberta);
+      if (!visiveis.length) return;
+      const g = document.createElement("div"); g.className = "grp"; g.textContent = rot; nav.append(g);
+      visiveis.forEach(id => {
+        const m = mod(id);
+        const b = document.createElement("button"); b.className = "mod";
+        b.innerHTML = `<span>${esc(m.label.toUpperCase())}</span><b>›</b>`;
+        b.onclick = () => abrirAba(id);
+        nav.append(b);
+      });
+    });
+    estado.sections.filter(m => !GRUPOS.some(([, ids]) => ids.includes(m.id)) && m.id !== abaAberta).forEach(m => {
+      const b = document.createElement('button'); b.className = 'mod'; b.textContent = m.label;
+      b.onclick = () => abrirAba(m.id); nav.append(b);
+    });
+    nav.append(settings);
+  }
+  function caixaAba(id) {
+    const m = mod(id);
+    const box = document.createElement("div"); box.className = "aba";
+    const rot = document.createElement("div"); rot.className = "rot"; rot.textContent = "ABA ATIVA";
+    const nm = document.createElement("div"); nm.className = "nome";
+    const sp = document.createElement("span"); sp.textContent = m.label.toUpperCase();
+    const fx = document.createElement("button"); fx.textContent = "×"; fx.setAttribute("aria-label", "Fechar aba");
+    fx.onclick = () => { if (!voltarAoEstadoInicial()) return; pintaNav(); pintaTudo(); };
+    const add = document.createElement('button');
+    add.type = 'button'; add.id = 'newTemplate'; add.textContent = '+';
+    add.title = 'Criar novo modelo'; add.setAttribute('aria-label', 'Criar novo modelo');
+    add.onclick = () => criarModelo(id);
+    nm.append(sp, fx, add);
+    const del = document.createElement('button'); del.textContent = 'Excluir'; del.className = 'delete-module';
+    del.onclick = async () => {
+      if (!await ask('Excluir o módulo ' + m.label + ' e seus modelos? Você poderá desfazer agora.')) return;
+      salvarJa(); const backup = clone(estado); m.templates.forEach(t=>rascunhos.delete(t.id)); estado.deletedSections = [...(estado.deletedSections || []), m.id];
+      estado.sections = estado.sections.filter(s => s.id !== m.id); abaAberta = null; tplSel = null; salvarJa(); pintaNav(); pintaTudo(); oferecerDesfazer(backup);
+    }; nm.append(del);
+    const bs = document.createElement("div"); bs.className = "abaBusca";
+    bs.innerHTML = `<span class="ic" aria-hidden="true">⌕</span>`;
+    const inp = document.createElement("input"); inp.type = "search";
+    inp.placeholder = `Pesquisar em ${m.label.toLowerCase()}…`;
+    inp.setAttribute("aria-label", `Pesquisar em ${m.label}`); inp.value = buscaAba;
+    bs.append(inp);
+    const count = document.createElement('div'); count.className='result-count'; count.setAttribute('role','status');
+    const lista = document.createElement("div"); lista.className = "lista";
+    const vazio = document.createElement("div"); vazio.className = "vazio-l";
+    vazio.textContent = "Nada encontrado neste módulo."; vazio.hidden = true;
+    // Todos os modelos ficam no documento; a busca só mostra e esconde.
+    // Redesenhar a cada tecla destrói o campo e faz perder o foco.
+    const bts = ordenados(m).map((t, i) => {
+      const x = document.createElement("button"); x.className = "tpl"; x.textContent = t.title;
+      if ((estado.usage[t.id] || 0) > 0 && i < 3) {
+        const u = document.createElement("span"); u.className = "uso"; u.textContent = "mais usado"; x.append(u);
+      }
+      x.dataset.busca = norm(t.title);
+      x.setAttribute("aria-current", String(tplSel === t.id));
+      x.onclick = (event) => { event.preventDefault(); event.stopPropagation(); abrirModelo(m.id, t.id); };
+      lista.append(x); return x;
+    });
+    lista.append(vazio);
+    const filtra = () => {
+      const q = norm(inp.value.trim()); buscaAba = inp.value;
+      let n = 0; bts.forEach(b => { const ok = DocCore.matches(b.dataset.busca, q); b.hidden = !ok; if (ok) n++; });
+      vazio.hidden = n > 0; count.textContent = n + ' de ' + bts.length + ' modelos';
+    };
+    inp.addEventListener("input", filtra);
+    inp.addEventListener("search", filtra);
+    // Sair do input não altera os alvos entre pointerdown e click.
+    // A saída do painel inteiro é tratada após a interação, mais abaixo.
+    filtra();
+    box.append(rot, nm, bs, count, lista);
+    if (focarBusca) { focarBusca = false; setTimeout(() => inp.focus(), 0); }
+    return box;
+  }
+  function abrirModelo(secId, tplId) {
+    if (sujo && !salvarJa()) return;
+    editando = false;
+    tplSel = tplId;
+    // Cada escolha pelo menu inicia um novo roteiro. Regiões adicionais e
+    // alterações feitas apenas na visualização anterior não acompanham o
+    // próximo atendimento; personalizações feitas no modo próprio continuam
+    // pertencendo ao modelo.
+    usarRascunho = false; window.DocHasDrafts = rascunhos.size > 0;
+    $('modelActions').open = false;
+    extras=[]; regionId=uid('region'); seg=null; lado=null; bilateral=false; detalhe=null; mecanismo=''; vista='frente';
+    aplicarPadroes(tplAtual());
+    estado.usage[tplId] = (estado.usage[tplId] || 0) + 1;
+    estado.recent = [tplId, ...estado.recent.filter(i => i !== tplId)].slice(0, 10);
+    // Ao escolher um resultado, encerra a busca e atualiza imediatamente o
+    // documento exibido. Isso evita manter o texto do modelo anterior na tela.
+    $("gs").value = "";
+    buscaAba = "";
+    abaAberta = secId; agendarSalvar(); fecharMenu(); pintaNav(); pintaTudo();
+    $('docs').scrollTop = 0;
+    $("app").classList.toggle('anatomy-open', mostraCorpo(tplAtual()) && !seg);
+  }
+
+  /* ---------- painel 2 ---------- */
+  function pintaCorpo() {
+    const t = tplAtual();
+    const mostra = mostraCorpo(t);
+    $("app").classList.toggle("sem-corpo", !mostra);
+    if (!mostra) { $('palco').replaceChildren(); $('palco').dataset.view = ''; return; }
+    const det = vista === "maos" || vista === "pes";
+    if ($('palco').dataset.view !== vista) {
+      $("palco").innerHTML = det ? detalheSVG(vista) : corpoSVG(vista === "frente");
+      $('palco').dataset.view = vista;
+    }
+    $("vista").textContent = vista === "maos" ? "Mãos" : vista === "pes" ? "Pés"
+                           : vista === "frente" ? "Frente" : "Verso";
+    document.querySelectorAll("#vistas button").forEach(b => {
+      const alvo = b.dataset.vista;
+      b.setAttribute("aria-pressed", String(alvo === "corpo" ? vista === 'frente' : alvo === vista));
+    });
+    const m = usaMec(t);
+    if (m && !$("mec").options.length) {
+      const s = $("mec");
+      s.append(new Option("— escolha o mecanismo —", ""));
+      MECANISMOS.forEach(x => s.append(new Option(x, x)));
+      s.append(new Option("outro (descrever)", "__livre__"));
+    }
+    if (m) { $("mec").value = MECANISMOS.includes(mecanismo) ? mecanismo : (mecanismo ? '__livre__' : ''); $("mecLivre").hidden = !mecanismo || MECANISMOS.includes(mecanismo); $("mecLivre").value = mecanismo; }
+    marca();
+  }
+  function equivalentModel(region) {
+    if(!tplAtual()?.segPadrao || !modAtual())return null;
+    return modAtual().templates.find(t=>t.id!==tplSel && t.segPadrao===region && !t.fixo);
+  }
+  function removeRegion(index) {
+    if(index===0){const first=extras.shift();regionId=first?.id||uid('region');seg=first?.seg||null;lado=first?.lado||null;bilateral=first?.bilateral||false;detalhe=first?.detalhe||null;}
+    else extras.splice(index-1,1);
+    fecharEstruturas();
+  }
+  function addRegion(c) {
+    c.id=c.id||uid('region');
+    if(!seg){regionId=c.id;seg=c.seg;lado=c.lado||null;bilateral=!!c.bilateral;detalhe=c.detalhe||null;pintaTudo();agendarSalvar();return;}
+    if(!contexts().some(x=>x.seg===c.seg&&x.lado===c.lado&&x.bilateral===c.bilateral))extras.push(c);
+    pintaTudo(); agendarSalvar();
+  }
+  function toggleRegion(c) {
+    // Completa a lateralidade de uma entrada pendente, mantendo sua identidade
+    // e qualquer bloco regional editado, em vez de duplicar a região.
+    const pending = contexts().findIndex(x=>x.seg===c.seg && !x.lado && !x.bilateral);
+    if (pending >= 0 && (c.lado || c.bilateral)) {
+      if (pending === 0 && seg) { lado=c.lado||null; bilateral=!!c.bilateral; }
+      else { const target=extras[pending-(seg?1:0)]; target.lado=c.lado||null; target.bilateral=!!c.bilateral; }
+      pintaTudo(); agendarSalvar(); return;
+    }
+    // A lista sem lado refere-se à região já escolhida; não cria outra pendente.
+    if (!c.lado && !c.bilateral && contexts().some(x=>x.seg===c.seg && (x.lado || x.bilateral))) return;
+    const index=contexts().findIndex(x=>x.seg===c.seg&&x.lado===c.lado&&Boolean(x.bilateral)===Boolean(c.bilateral));
+    if(index>=0){removeRegion(index+(seg?0:1));pintaTudo();agendarSalvar();return;}
+    addRegion(c);
+  }
+  function setDetalhe(index, value) {
+    if(index===0 && seg) detalhe=value||null;
+    else if(index>0 && extras[index-1]) extras[index-1].detalhe=value||null;
+    fecharEstruturas(); pintaTudo(); agendarSalvar();
+  }
+  function fecharEstruturas() {
+    const host=$('structureMenu');
+    if(host){host.hidden=true;host.replaceChildren();}
+  }
+  function abrirEstruturas(index) {
+    const c=contexts()[index], opts=c?estruturasDe(c.seg):[];
+    const host=$('structureMenu');
+    if(!host || !c || !opts.length) return false;
+    host.replaceChildren(); host.hidden=false;
+    const title=document.createElement('div'); title.className='structure-title';
+    title.textContent='Detalhar '+segmentBaseName(c).toLowerCase();
+    const grid=document.createElement('div'); grid.className='structure-options';
+    const only=document.createElement('button'); only.type='button'; only.textContent='Somente '+segmentBaseName(c).toLowerCase();
+    only.className=!c.detalhe?'sel':'';
+    only.onclick=()=>setDetalhe(index,null); grid.append(only);
+    opts.forEach(opt=>{const b=document.createElement('button');b.type='button';b.textContent=opt;b.className=c.detalhe===opt?'sel':'';b.onclick=()=>setDetalhe(index,opt);grid.append(b);});
+    host.append(title,grid);
+    return true;
+  }
+  function paintRegions(){
+    const host=$('regionList'); host.replaceChildren();
+    contexts().forEach((c,index)=>{
+      const i=index+(seg?0:1);
+      const row=document.createElement('div');row.className='region-chip';
+      const name=document.createElement(estruturasDe(c.seg).length?'button':'span');name.textContent=segmentName(c);
+      if(name.tagName==='BUTTON'){name.type='button';name.className='region-name';name.title='Clique para detalhar a estrutura';name.onclick=()=>abrirEstruturas(index);}
+      row.append(name);
+      if(temLado(c.seg)){
+        const select=document.createElement('select');select.setAttribute('aria-label','Lado de '+SEG[c.seg].nome);
+        [['','Lado…'],['D','Direito'],['E','Esquerdo']].forEach(([v,n])=>select.append(new Option(n,v)));
+        select.value=c.lado||'';
+        select.onchange=()=>{if(i===0){lado=select.value||null;bilateral=false;}else{extras[i-1].lado=select.value||null;extras[i-1].bilateral=false;}pintaTudo();agendarSalvar();};
+        if(!fixoDe(tplAtual()))row.append(select);
+      }
+      const remove=document.createElement('button');remove.textContent='×';remove.setAttribute('aria-label','Remover '+segmentName(c));
+      remove.onclick=()=>{removeRegion(i);pintaTudo();agendarSalvar();};
+      if(!fixoDe(tplAtual()))row.append(remove);host.append(row);
+    });
+  }
+  function marca() {
+    const t = tplAtual(), fx = fixoDe(t); paintRegions();
+    $("palco").classList.toggle("fixo", Boolean(fx));
+    document.querySelectorAll(".reg").forEach(p => {
+      const escolhido = contexts().some(c => c.seg === p.dataset.seg && (!SEG[c.seg].lat || c.bilateral || c.lado === p.dataset.lado));
+      p.classList.toggle("sel", escolhido);
+      p.setAttribute('aria-pressed', String(escolhido));
+    });
+    const n = nomeSeg();
+    $("segmentSelect").value = ''; $("segmentSelect").disabled = Boolean(fx);
+    [...$('segmentSelect').options].forEach(o => o.disabled = Boolean(o.value) && !aceitaRegiao(o.value) && !equivalentModel(o.value));
+    document.querySelectorAll('.reg').forEach(p => p.setAttribute('aria-disabled', String(Boolean(fx) || !aceitaRegiao(p.dataset.seg))));
+    $("sideChoices").hidden = Boolean(fx) || !temLado(seg);
+    document.querySelectorAll('[data-side]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.side === lado && !bilateral)));
+    $("sel").innerHTML = n ? `Selecionado: <b>${esc(n.toLowerCase())}</b>` : "Nenhum segmento selecionado.";
+    $("mecwrap").hidden = Boolean(fx) || !usaMec(t);
+    if (fx) {
+      $("dica").textContent = "Este modelo já é deste lado. Para trocar, use o modelo do outro lado.";
+    } else if (temLado(seg) && !lado && !bilateral) {
+      $("dica").textContent = "Toque no lado acometido — direito à esquerda de quem olha.";
+    } else {
+      $("dica").textContent = "Clique novamente na região selecionada para detalhar a estrutura óssea. Para remover, use × na região selecionada.";
+    }
+  }
+  $("palco").addEventListener("click", e => {
+    const p = e.target.closest(".reg");
+    if (!p) {
+      // No corpo, o fundo alterna frente e verso. Ampliado, o fundo volta ao corpo.
+      vista = vista === "frente" ? "verso" : vista === "verso" ? "frente" : "frente";
+      pintaCorpo(); return;
+    }
+    if (fixoDe(tplAtual())) { aviso("Este modelo já é de um lado definido."); return; }
+    if (!aceitaRegiao(p.dataset.seg)) { aviso('Este modelo é específico de ' + SEG[tplAtual().segPadrao].nome + '. Escolha um modelo correspondente à nova região.'); return; }
+    const side=p.dataset.lado||null;
+    const existing=contexts().findIndex(x=>x.seg===p.dataset.seg && (!SEG[x.seg].lat || x.bilateral || x.lado===side));
+    if(existing>=0 && estruturasDe(p.dataset.seg).length){ abrirEstruturas(existing); return; }
+    fecharEstruturas();
+    toggleRegion({seg:p.dataset.seg,lado:side,bilateral:false,detalhe:null});
+    // Tocar na mão ou no pé no corpo já amplia: o dedo fica a um toque.
+    const d = DETALHE[p.dataset.seg];
+    if (d && vista !== d) { vista = d; pintaCorpo(); }
+  });
+  $('palco').addEventListener('keydown', e => { if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('.reg')) { e.preventDefault(); e.target.dispatchEvent(new MouseEvent('click', { bubbles: true })); } });
+  $("vistas").addEventListener("click", e => {
+    const b = e.target.closest("button[data-vista]");
+    if (!b) return;
+    vista = b.dataset.vista === "corpo" ? "frente" : b.dataset.vista;
+    pintaCorpo();
+  });
+  $("mec").addEventListener("change", e => {
+    if (e.target.value === "__livre__") { $("mecLivre").hidden = false; mecanismo = $("mecLivre").value; $("mecLivre").focus(); }
+    else { $("mecLivre").hidden = true; mecanismo = e.target.value; }
+    pintaTexto(); agendarSalvar();
+  });
+  $("mecLivre").addEventListener("input", e => { mecanismo = e.target.value; pintaTexto(); agendarSalvar(); });
+
+  /* ---------- painel 3 ---------- */
+  function pintaTexto() {
+    const t = tplAtual(), m = modAtual(), docs = $("docs");
+    const previousScroll = docs.scrollTop;
+    const previousFocus = document.activeElement;
+    const focusIndex = previousFocus?.matches?.('textarea[data-bloco]') && docs.contains(previousFocus) ? Number(previousFocus.dataset.bloco) : -1;
+    const selection = focusIndex >= 0 ? [previousFocus.selectionStart, previousFocus.selectionEnd] : null;
+    const focusRegion = selection ? previousFocus.dataset.regionKey : null;
+    $("btCopiar").hidden = true; $("btVars").hidden = true; $("btRestaurar").hidden = true;
+    $("saveAsModel").hidden = !t; $("favorite").hidden = !t; $("editMode").hidden = !t;
+    $('modelActions').hidden = !t;
+    $('recoverDraft').hidden = !t || editando || usarRascunho || !rascunhos.has(tplSel);
+    $("contextBar").hidden = !mostraCorpo(t);
+    $("modeNote").hidden = !t;
+    $('editTools').hidden = !t || !editando;
+    $("modeNote").textContent = editando ? 'Personalização permanente · salva neste navegador. Preserve as variáveis de região.' : 'Texto deste atendimento · salvo como rascunho neste navegador. Uma nova seleção abre o modelo original.';
+    $("modeNote").classList.toggle('editing', editando);
+    $("editMode").textContent = editando ? 'Concluir personalização' : 'Personalizar modelo';
+    $("editMode").setAttribute('aria-pressed', String(editando));
+    $("favorite").textContent = estado.favorites.includes(tplSel) ? '★' : '☆';
+    $("favorite").setAttribute('aria-pressed', String(estado.favorites.includes(tplSel)));
+    $("contextSummary").textContent = [nomeSeg(), usaMec(t) ? mecanismo : ''].filter(Boolean).join(' · ');
+    $("showAnatomy").textContent = seg ? 'Alterar região' : 'Selecionar região';
+    if (!t) {
+      $("olho").textContent = "—"; $("nome").textContent = "Selecione um modelo";
+      docs.innerHTML = `<div class="welcome"><span class="welcome-kicker">SEU ESPAÇO CLÍNICO</span><h1>Mais presença.<br>Menos digitação.</h1><p>Encontre o modelo, ajuste a região e revise o texto.</p><button class="copiar" id="startSearch">Encontrar um modelo <kbd>Ctrl K</kbd></button><div class="welcome-modules"></div></div>`;
+      $('startSearch').onclick = () => { abrirMenu(); $('gs').focus(); };
+      estado.sections.slice(0, 4).forEach(s => { const b = document.createElement('button'); b.textContent = s.label + ' ↗'; b.onclick = () => { abrirAba(s.id); abrirMenu(); }; docs.querySelector('.welcome-modules').append(b); });
+      return;
+    }
+    $("olho").textContent = m.label.toUpperCase();
+    $("nome").textContent = t.title;
+    $("btVars").hidden = !editando;
+    $("btRestaurar").hidden = !doSeed(t.id);
+    const currentBlocks = editando ? t.blocks : blocosAtuais();
+    const shape = JSON.stringify([t.id,editando,currentBlocks.map(b=>[b.title,b.regionKey||null])]);
+    const reuse = !editando && docs.dataset.shape === shape && docs.querySelectorAll('textarea').length === currentBlocks.length;
+    if (!reuse) docs.replaceChildren();
+    else docs.querySelectorAll('.aviso').forEach(el=>el.remove());
+    docs.dataset.shape = shape;
+    if (usaSeg(t) && temLado(seg) && !lado && !bilateral && temVar(t)) {
+      const a = document.createElement("div"); a.className = "aviso";
+      a.textContent = "Falta o lado — toque no " + SEG[seg].nome + " direito ou esquerdo no mapa.";
+      docs.prepend(a);
+    }
+    if (usaMec(t) && !mecanismo && temVar(t)) {
+      const a = document.createElement("div"); a.className = "aviso";
+      a.textContent = "Falta escolher o mecanismo de trauma — ele aparece marcado no texto até ser definido.";
+      docs.prepend(a);
+    }
+    if (reuse) {
+      docs.querySelectorAll('textarea').forEach((ta,i)=>{ const value=preencherBloco(currentBlocks[i]); if(ta.value!==value){ta.value=value;auto(ta);} });
+      docs.scrollTop = previousScroll;
+      if (selection && document.activeElement === previousFocus) previousFocus.setSelectionRange(...selection);
+      $('btCopiar').hidden = false;
+      return;
+    }
+    currentBlocks.forEach((b, i) => {
+      const card = document.createElement("section"); card.className = "blk";
+      const bh = document.createElement("div"); bh.className = "bh";
+      const sp = document.createElement("span"); sp.textContent = b.title;
+      if (editando) {
+        sp.contentEditable = 'plaintext-only'; sp.setAttribute('role','textbox'); sp.setAttribute('aria-label','Título da caixa ' + (i+1));
+        sp.oninput = () => { b.title = sp.textContent; cb.textContent='COPIAR '+b.title; cb.dataset.copyLabel=cb.textContent; t.modified = Date.now(); agendarSalvar(); };
+      }
+      const cb = document.createElement("button"); cb.textContent = 'COPIAR ' + b.title; cb.dataset.copyLabel=cb.textContent;
+      cb.onclick = async () => {
+        const current = (editando ? tplAtual().blocks : blocosAtuais())[i];
+        await copiar(preencherBloco(current), cb);
+      };
+      bh.append(sp, cb);
+      if (editando && t.blocks.length > 1) {
+        const remove = document.createElement('button'); remove.textContent = 'Excluir caixa';
+        remove.onclick = async () => { if (!await ask('Excluir esta caixa de texto do modelo?')) return; t.blocks.splice(i,1); t.modified = Date.now(); salvarJa(); pintaTexto(); }; bh.append(remove);
+      }
+      const ta = document.createElement("textarea");
+      ta.value = editando ? b.content : preencherBloco(b);
+      ta.spellcheck = false;
+      ta.setAttribute("aria-label", "Conteúdo de " + b.title);
+      ta.dataset.bloco = String(i);
+      ta.dataset.regionKey = b.regionKey || '';
+      ta.addEventListener("focus", () => { ultimoFoco = ta; });
+      ta.addEventListener("input", () => {
+        // Edição direta grava no modelo. Se o texto tinha variável e o usuário
+        // digitou por cima, o que ele escreveu vale — é o texto dele.
+        if (editando) { b.content = ta.value; t.modified = Date.now(); agendarSalvar(); }
+        else {
+          const blocks = clone(blocosAtuais()); blocks[i].content = DocCore.edit(blocks[i].content, ta.value, valores(blocks[i]));
+          rascunhos.set(tplSel, blocks); usarRascunho = true; window.DocHasDrafts = true; agendarSalvar();
+          $('recoverDraft').hidden = true;
+        }
+        auto(ta);
+      });
+      card.append(bh, ta); docs.append(card); auto(ta);
+    });
+    if (selection) { const fields=[...docs.querySelectorAll('textarea')]; const next=focusRegion ? fields.find(ta=>ta.dataset.regionKey===focusRegion) : fields[focusIndex]; if(next){next.focus({preventScroll:true});next.setSelectionRange(...selection);} }
+    docs.scrollTop = previousScroll;
+    $("btCopiar").hidden = false;
+  }
+  function auto(ta) { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 2) + "px"; }
+  function pintaTudo() { pintaCorpo(); pintaTexto(); }
+
+  $("btCopiar").addEventListener("click", async e => {
+    const b = e.currentTarget, t = tplAtual();
+    if (!t) return;
+    const txt = (editando ? t.blocks : blocosAtuais()).map(x => preencherBloco(x).trim()).filter(Boolean).join("\n\n");
+    await copiar(txt, b);
+  });
+  $("btRestaurar").addEventListener("click", async () => {
+    const t = tplAtual(); const o = doSeed(t && t.id);
+    if (!o || !await ask("Restaurar este modelo para o conteúdo original?")) return;
+    const s = modAtual(); const i = s.templates.findIndex(x => x.id === t.id);
+    s.templates[i] = clone(o); rascunhos.delete(tplSel); salvarJa(); aviso("Modelo restaurado."); pintaTudo();
+  });
+
+  /* ---------- inserir variável ---------- */
+  $("btVars").addEventListener("click", () => {
+    const g = $("vgrid"); g.replaceChildren();
+    VARIAVEIS.forEach(([v, ex, desc]) => {
+      const b = document.createElement("button");
+      b.innerHTML = `<code>${esc(v)}</code> → ${esc(ex)}<small>${esc(desc)}</small>`;
+      b.onclick = () => inserir(v);
+      g.append(b);
+    });
+    $("modalVars").hidden = false;
+  });
+  function inserir(v) {
+    const t = tplAtual();
+    const ta = ultimoFoco && document.body.contains(ultimoFoco) ? ultimoFoco : $("docs").querySelector("textarea");
+    if (!t || !ta) return;
+    const i = Number(ta.dataset.bloco);
+    const p = ta.selectionStart ?? ta.value.length;
+    ta.value = ta.value.slice(0, p) + v + ta.value.slice(ta.selectionEnd ?? p);
+    t.blocks[i].content = ta.value;
+    // ligar automaticamente o recurso correspondente
+    t.usa = t.usa || {};
+    if (v.includes("SEG")) { t.usa.segmento = true; t.usa.lateralidade = true; }
+    if (v.includes("MEC")) t.usa.mecanismo = true;
+    t.modified = Date.now();
+    salvarJa(); $("modalVars").hidden = true;
+    aviso("Variável inserida. O modelo agora usa " + (v.includes("MEC") ? "mecanismo de trauma." : "segmento anatômico."));
+    pintaTudo();
+    setTimeout(() => { const n = $("docs").querySelectorAll("textarea")[i]; if (n) { n.focus(); n.setSelectionRange(p + v.length, p + v.length); } }, 0);
+  }
+  document.querySelectorAll("[data-fecha]").forEach(b => b.onclick = () => $("modalVars").hidden = true);
+  $("modalVars").addEventListener("click", e => { if (e.target === $("modalVars")) $("modalVars").hidden = true; });
+
+  /* ---------- exportar / importar ---------- */
+  $("btExportar").addEventListener("click", () => {
+    salvarJa();
+    const blob = new Blob([JSON.stringify({ app: "DocTemplate Ortopedia", format: 1, release: RELEASE, seedVersion: seed.version, exportedAt: new Date().toISOString(), state: estado }, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = `doctemplate-${RELEASE}-${new Date().toISOString().slice(0,16).replace(/[:T]/g,"-")}.json`;
+    document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    aviso("Arquivo exportado.");
+  });
+  $("btImportar").addEventListener("click", () => $("arquivo").click());
+  $("arquivo").addEventListener("change", e => {
+    const f = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!f) return;
+    const r = new FileReader();
+    r.onload = async () => {
+      try {
+        const p = JSON.parse(String(r.result));
+        const inc = p && p.state && Array.isArray(p.state.sections) ? p.state : (p && Array.isArray(p.sections) ? p : null);
+        if (!inc) throw new Error("formato");
+        DocCore.validate(inc);
+        const importedIds = new Set(inc.sections.flatMap(s=>s.templates.map(t=>t.id)));
+        const knownIds = new Set(estado.sections.flatMap(s=>s.templates.map(t=>t.id)));
+        const updated=[...importedIds].filter(id=>knownIds.has(id)).length;
+        if(!await ask('Importar '+(importedIds.size-updated)+' modelos novos e atualizar '+updated+' existentes? Os IDs iguais serão substituídos, sem cópias.')) return;
+        salvarJa();
+        const next=clone(estado);
+        next.history=(next.history||[]).concat([{at:Date.now(),sections:clone(next.sections),contexts:clone(next.contexts||{}),drafts:Object.fromEntries(rascunhos),deleted:clone(next.deleted||[]),deletedSections:clone(next.deletedSections||[])}]).slice(-5);
+        next.sections.forEach(s=>s.templates=s.templates.filter(t=>!importedIds.has(t.id)));
+        for(const section of inc.sections){let target=next.sections.find(s=>s.id===section.id);if(!target){target={id:section.id,label:section.label,templates:[]};next.sections.push(target);}target.templates.push(...clone(section.templates).map(t=>({...t,modified:Date.now()})));}
+        next.deleted=(next.deleted||[]).filter(id=>!importedIds.has(id));
+        next.deletedSections=(next.deletedSections||[]).filter(id=>!inc.sections.some(s=>s.id===id));
+        next.contexts=next.contexts||{};
+        importedIds.forEach(id=>{delete next.contexts[id];const c=inc.contexts?.[id]||(inc.context?.tplSel===id?inc.context:null);if(c)next.contexts[id]=clone(c);});
+        DocCore.validate(next); estado=next; importedIds.forEach(id=>{rascunhos.delete(id);if(inc.drafts?.[id])rascunhos.set(id,clone(inc.drafts[id]));});
+        if(abaAberta&&!mod(abaAberta))abaAberta=null;
+        if(importedIds.has(tplSel)){const c=estado.contexts[tplSel];regionId=c?.regionId||uid('region');seg=c?.seg||null;lado=c?.lado||null;bilateral=!!c?.bilateral;detalhe=c?.detalhe||null;mecanismo=c?.mecanismo||'';extras=clone(c?.extras||[]);if(!c)aplicarPadroes(tplAtual());if(tplAtual())abaAberta=modAtual().id;}
+        salvarJa(); pintaNav(); pintaTudo();
+        aviso("Arquivo importado e mesclado.");
+      } catch (_) { aviso("Não reconheci este arquivo. Use um .json exportado pelo DocTemplate."); }
+    };
+    r.readAsText(f);
+  });
+
+
+  function ask(message, initial) {
+    return new Promise(resolve => {
+      const dialog=$('actionDialog'), field=$('actionInput'), previous=document.activeElement;
+      $('actionTitle').textContent = initial === undefined ? 'Confirmar ação' : message;
+      $('actionMessage').textContent = initial === undefined ? message : '';
+      field.hidden = initial === undefined; field.value = initial ?? ''; field.setAttribute('aria-label',message);
+      const finish=value=>{ dialog.close(); resolve(value); if(previous?.isConnected) previous.focus(); };
+      $('actionCancel').onclick=()=>finish(initial===undefined?false:null);
+      $('actionForm').onsubmit=e=>{e.preventDefault();if(initial!==undefined&&!field.value.trim()){field.focus();return;}finish(initial===undefined?true:field.value.trim());};
+      dialog.oncancel=e=>{e.preventDefault();finish(initial===undefined?false:null);};
+      dialog.showModal(); (initial===undefined?$('actionCancel'):field).focus(); if(initial!==undefined)field.select();
+    });
+  }
+
+  /* ---------- menu no celular ---------- */
+  function abrirMenu() { $("c1").classList.add("open"); $("veu").classList.add("on"); }
+  function fecharMenu() { $("c1").classList.remove("open"); $("veu").classList.remove("on"); }
+  $("menuBt").addEventListener("click", abrirMenu);
+  $("fechaMenu").addEventListener("click", fecharMenu);
+  $("veu").addEventListener("click", fecharMenu);
+  $("settingsToggle").addEventListener("click", () => {
+    const panel = $("settingsPanel");
+    const aberto = panel.hidden;
+    panel.hidden = !aberto;
+    $("settingsToggle").setAttribute("aria-expanded", String(aberto));
+    $("settingsToggle").querySelector("span").textContent = aberto ? "⌄" : "›";
+  });
+
+  function iniciarEscolha() {
+    if (!tplSel) return;
+    const query=buscaAba;
+    if (!voltarAoEstadoInicial(abaAberta)) return;
+    buscaAba=query;
+    // Não recria o menu: o elemento que receberá o click permanece no lugar.
+    $('nav').querySelectorAll('[aria-current]').forEach(b=>b.setAttribute('aria-current','false'));
+    pintaTudo();
+  }
+  $('c1').addEventListener('pointerdown', e=>{
+    if (e.target.closest('#settingsSection, .delete-module, #fechaMenu, #newModule, #newTemplate')) return;
+    iniciarEscolha();
+  });
+  $('c1').addEventListener('focusin', e=>{
+    if (e.target.matches('#gs, .abaBusca input')) iniciarEscolha();
+  });
+  function sairDoMenu(target) {
+    if (!target || $('c1').contains(target) || target.closest?.('#menuBt, #actionDialog, #modalVars')) return;
+    if (!abaAberta && !buscaAba && !$('gs').value) return;
+    resetMenuState(); pintaNav(); fecharMenu();
+  }
+  // Classifica a origem antes de handlers recriarem o menu. Na fase de
+  // bubbling, o botão original pode estar destacado e parecer um clique fora.
+  document.addEventListener('click', e=>sairDoMenu(e.target), true);
+  document.addEventListener('focusin', e=>{
+    if (e.target.closest?.('#c2, #c3')) sairDoMenu(e.target);
+  });
+  $('c1').addEventListener('input', e=>{ if(e.target.matches('#gs, .abaBusca input')) iniciarEscolha(); });
+  $("gs").addEventListener("input", pintaNav);
+  $("gs").addEventListener("search", pintaNav);
+  $('modelActions').addEventListener('click', e=>{ if(e.target.closest('button')) $('modelActions').open=false; });
+  document.addEventListener('click', e=>{ if(!$('modelActions').contains(e.target)) $('modelActions').open=false; });
+  $('recoverDraft').onclick = async () => {
+    if(!tplSel || usarRascunho || editando || !rascunhos.has(tplSel)) return;
+    if(!await ask('Recuperar o rascunho anterior deste modelo, incluindo as regiões? Confira se pertence ao atendimento correto.')) return;
+    const c=estado.contexts?.[tplSel];
+    seg=c?.seg||null; lado=c?.lado||null; bilateral=!!c?.bilateral; detalhe=c?.detalhe||null; mecanismo=c?.mecanismo||'';
+    extras=clone(c?.extras||[]); regionId=c?.regionId||uid('region');
+    usarRascunho=true; pintaTudo(); agendarSalvar();
+  };
+  $('favorite').onclick = () => { estado.favorites = estado.favorites.includes(tplSel) ? estado.favorites.filter(id => id !== tplSel) : [...estado.favorites, tplSel]; agendarSalvar(); pintaTexto(); pintaNav(); };
+  $('editMode').onclick = () => { if (sujo && !salvarJa()) return; editando = !editando; if (editando) usarRascunho=false; pintaTudo(); };
+  Object.entries(SEG).forEach(([id, s]) => $('segmentSelect').append(new Option(s.nome, id)));
+  $('segmentSelect').onchange = async e => { const selected=e.target.value; if(selected&&!aceitaRegiao(selected)){const target=equivalentModel(selected);if(target&&await ask('Trocar para o modelo '+target.title+'? Seu texto atual permanece salvo.')){abrirModelo(modAtual().id,target.id);}else marca();return;} if(!selected)return; resetMenuState(); toggleRegion({seg:selected,lado:null,bilateral:false}); if (['toracica','lombar'].includes(selected)) vista = 'verso'; else if (dedoDe(selected)) vista = dedoDe(selected); pintaNav(); pintaTudo(); };
+  document.querySelectorAll('[data-side]').forEach(b => b.onclick = () => { resetMenuState(); lado = b.dataset.side; bilateral = false; marca(); pintaNav(); pintaTexto(); agendarSalvar(); });
+  $('showAnatomy').onclick = () => $('app').classList.toggle('anatomy-open');
+  $('closeAnatomy').onclick = () => $('app').classList.remove('anatomy-open');
+  $('resetContext').onclick = async () => {
+    if (usarRascunho && !await ask('Limpar as seleções e voltar ao texto original? O rascunho continuará disponível em Mais ações.')) return;
+    if (sujo && !salvarJa()) return;
+    seg = lado = detalhe = null; extras=[]; bilateral = false; mecanismo = ''; usarRascunho=false; fecharEstruturas();
+    if(fixoDe(tplAtual()))aplicarPadroes(tplAtual());
+    pintaTudo(); salvarJa();
+  };
+  function oferecerDesfazer(backup) {
+    const note = $('modeNote'); note.hidden = false; note.textContent = 'Módulo excluído. ';
+    const b = document.createElement('button'); b.textContent = 'Desfazer'; note.append(b);
+    b.onclick = () => { estado = backup; rascunhos.clear();Object.entries(backup.drafts||{}).forEach(([id,blocks])=>rascunhos.set(id,clone(blocks)));salvarJa(); pintaNav(); pintaTudo(); };
+  }
+  $('restoreImport').onclick=async()=>{const history=estado.history||[];if(!history.length){aviso('Nenhuma importação anterior para desfazer.');return;}if(!await ask('Restaurar os modelos anteriores à última importação?'))return;const snap=history.pop();estado.sections=clone(snap.sections);estado.contexts=clone(snap.contexts||{});const c=estado.contexts[tplSel];regionId=c?.regionId||uid('region');seg=c?.seg||null;lado=c?.lado||null;bilateral=!!c?.bilateral;mecanismo=c?.mecanismo||'';extras=clone(c?.extras||[]);estado.deleted=clone(snap.deleted||[]);estado.deletedSections=clone(snap.deletedSections||[]);if(abaAberta&&!mod(abaAberta))abaAberta=null;if(!tplAtual())tplSel=null;rascunhos.clear();Object.entries(snap.drafts||{}).forEach(([id,blocks])=>rascunhos.set(id,blocks));salvarJa();pintaNav();pintaTudo();};
+  $('newModule').onclick = async () => {
+    const label = await ask('Nome da nova aba/categoria:', ''); if (!label?.trim()) return;
+    const id = uid('mod'); estado.sections.push({ id, label: label.trim(), templates: [] }); abaAberta = id; filtro = 'all'; $('gs').value = ''; salvarJa(); pintaNav();
+  };
+  async function criarModelo(moduleId) {
+    const s = mod(moduleId); if (!s) { aviso('Selecione uma aba/categoria primeiro.'); return; }
+    const title = await ask('Nome do modelo em ' + s.label + ':', ''); if (!title?.trim()) return;
+    const t = { id: uid(s.id), title: title.trim(), modified: Date.now(), blocks: [{ title: 'DOCUMENTO', content: '' }] };
+    s.templates.push(t); salvarJa(); abrirModelo(s.id, t.id); editando = true; pintaTudo();
+  };
+  $('renameTemplate').onclick = async () => { const t = tplAtual(); const title = await ask('Nome do modelo:',t.title); if (!title?.trim()) return; t.title = title.trim(); t.modified = Date.now(); salvarJa(); pintaNav(); pintaTexto(); };
+  $('saveAsModel').onclick=async()=>{const current=tplAtual();if(!current)return;const title=await ask('Nome do novo modelo:',current.title+' — cópia');if(!title)return;const s=modAtual(),copy={...clone(current),id:uid(s.id),title,blocks:clone(blocosAtuais()),modified:Date.now()};s.templates.push(copy);salvarJa();estado.contexts[copy.id]={...clone(estado.contexts[current.id]||{}),tplSel:copy.id};abrirModelo(s.id,copy.id);};
+  $('addBlock').onclick = () => { const t = tplAtual(); t.blocks.push({title:'NOVA CAIXA',content:''}); t.modified = Date.now(); salvarJa(); pintaTexto(); $('docs').lastElementChild.querySelector('textarea').focus(); };
+  $('deleteTemplate').onclick = async () => {
+    const t = tplAtual(); if (!await ask('Excluir o modelo ' + t.title + '?')) return;
+    salvarJa(); const backup = clone(estado); modAtual().templates = modAtual().templates.filter(x => x.id !== t.id); estado.deleted.push(t.id);
+    rascunhos.delete(t.id); tplSel = null; editando = false; salvarJa(); pintaNav(); pintaTudo(); oferecerDesfazer(backup);
+  };
+  window.addEventListener('offline', () => $('networkStatus').textContent = 'Modo offline');
+  window.addEventListener('online', () => $('networkStatus').textContent = navigator.serviceWorker?.controller ? 'Disponível offline' : 'Conectado');
+  window.addEventListener('beforeunload', () => { if(sujo)salvarJa(); });
+  document.addEventListener("keydown", e => {
+    if (e.key === 'Escape' && $('modelActions').open) { $('modelActions').open=false; $('modelActions').querySelector('summary').focus(); }
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); abrirMenu(); $("gs").focus(); }
+    if (e.key === "Escape" && !$("modalVars").hidden) $("modalVars").hidden = true;
+  });
+  window.addEventListener("resize", () => { $("docs").querySelectorAll("textarea").forEach(auto); });
+
+  /* ---------- início ---------- */
+  // A abertura é sempre uma nova consulta: mostra a tela inicial e não repõe
+  // o documento, as regiões ou o texto da sessão anterior.
+  tplSel=null; seg=null; lado=null; bilateral=false; mecanismo=''; extras=[]; regionId=uid('region');
+  resetMenuState();
+  pintaNav(); pintaTudo(); pintarStatus();
+  if (estado.migradoDe !== undefined) { delete estado.migradoDe; salvarJa(); aviso("Modelos atualizados. Suas edições foram preservadas."); }
+})();
