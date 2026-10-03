@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "test": "node functional-49.cjs ../dist"
+  },
+  "devDependencies": {
+    "linkedom": "0.18.13"
+  }
+}

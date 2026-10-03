@@ -54,3 +54,5 @@ button.mk:focus-visible,.aba .nome button:focus-visible{outline:2px solid #aee0e
 .aba .nome>span{min-width:0;overflow-wrap:anywhere}
 .aba .nome #newTemplate{min-width:28px;min-height:32px;cursor:pointer}
 .aba .nome #newTemplate:hover{color:#fff;background:#ffffff14;border-radius:5px}
+
+.coding-reference{margin:1rem 0;padding:1rem;border:1px solid var(--border,#d5dce4);border-radius:.5rem;font-size:.875rem;line-height:1.5}.coding-reference summary{cursor:pointer;font-weight:600}.coding-reference p{white-space:pre-wrap;margin:.65rem 0 0}

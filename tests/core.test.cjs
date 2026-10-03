@@ -2,7 +2,7 @@ const { test } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const vm = require('node:vm');
-const core = require('../core.js');
+const core = require('../dist/core.js');
 const v = { '{{NO_SEG}}':'NO JOELHO DIREITO', '{{DO_SEG}}':'DO JOELHO DIREITO', '{{APOS_MEC}}':'APÓS QUEDA' };
 test('search ignores accents, case and word order', () => { assert(core.matches('CONTUSÃO DO JOELHO DIREITO', 'direito contusao')); assert(!core.matches('JOELHO', 'ombro')); });
 test('editing a different sentence preserves all variables', () => {
@@ -20,10 +20,10 @@ test('append, delete, replace and empty edits', () => {
   assert.equal(core.edit('','hello',v),'hello');
 });
 test('catalog has unique valid models and 13 modules', () => {
-  const ctx = {window:{}}; vm.runInNewContext(fs.readFileSync(require.resolve('../data.js'),'utf8'),ctx);
+  const ctx = {window:{}}; vm.runInNewContext(fs.readFileSync(require.resolve('../dist/data.js'),'utf8'),ctx);
   core.validate(ctx.window.DOCTEMPLATE_SEED);
   assert.equal(ctx.window.DOCTEMPLATE_SEED.sections.length,13);
-  assert.equal(ctx.window.DOCTEMPLATE_SEED.sections.flatMap(s=>s.templates).length,244);
+  assert.equal(ctx.window.DOCTEMPLATE_SEED.sections.flatMap(s=>s.templates).length,246);
 });
 test('malformed import rejected without partial mutation', () => {
   assert.throws(()=>core.validate({sections:[{id:'x',label:'X',templates:[{id:'x',title:'X',blocks:[{content:13}]}]}]}));

@@ -10,7 +10,7 @@
   // chave: ela é a rede de segurança se for preciso voltar para a 3.2.
   const CHAVE_ANTERIOR = "doctemplate-ortopedia:3.0";
   const ATRASO_SALVAR = 250;
-  const RELEASE = "4.11.3";
+  const RELEASE = "4.13.0";
 
   const seed = window.DOCTEMPLATE_SEED;
   if (!seed || !Array.isArray(seed.sections)) {
@@ -55,6 +55,8 @@
     ["{{DO_SEG}}", "DO PÉ DIREITO · DA MÃO DIREITA", "com de — concorda com o gênero"],
     ["{{AO_SEG}}", "AO PÉ DIREITO · À MÃO DIREITA", "com a — concorda com o gênero"],
     ["{{APOS_MEC}}", "APÓS QUEDA DE ALTURA", "o mecanismo de trauma escolhido"],
+    ["{{DATA}}", "DATA DE HOJE", "data atual em São Paulo"],
+    ["{{RETORNO}}", "RETORNO EM 2 SEMANAS", "data de hoje mais 14 dias"],
   ];
 
   const clone = v => JSON.parse(JSON.stringify(v));
@@ -137,9 +139,6 @@
         let text = b.content.replace(/\r\n/g, '\n');
         text = text.replace(/^(RECEITA[^\n]*?)\s*—\s*MEDICAMENTOS DE MARCA\s*$/m, '$1');
         text = text.replace(/^(\d+\. [^\n]+)\n\s*\n(?=(?:TOMAR|DAR|APLICAR|ADMINISTRAR|APÓS|ASPIRAR)\b)/gm, '$1\n');
-        if (t.id === 'rx-dor-aguda-marca-bexai-35-mg-miosan-5-mg-dipirona-1-g-24' && !/COMPRESSA/i.test(text)) {
-          text = text.replace(/(^ORIENTAÇÕES\s*\n)/m, '$1COMPRESSA FRIA POR 15 MIN. ALTERNADA COM 15 MIN. DE MORNA, 3X AO DIA POR 5 DIAS.\n');
-        }
         const at = text.indexOf('\nORIENTAÇÕES\n');
         if (at >= 0) text = text.slice(0, at) + text.slice(at).replace(/\n[ \t]*\n+/g, '\n');
         b.content = text;
@@ -284,6 +283,13 @@
   })); }
   function preencher(txt) {
     let r = txt;
+    const today = new Intl.DateTimeFormat('en-CA', {timeZone:'America/Sao_Paulo',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());
+    const parts = Object.fromEntries(today.map(p => [p.type,p.value]));
+    const date = new Date(Date.UTC(Number(parts.year),Number(parts.month)-1,Number(parts.day),12));
+    const format = d => d.toLocaleDateString('pt-BR', {timeZone:'UTC'});
+    r = r.replaceAll('{{DATA}}',format(date));
+    date.setUTCDate(date.getUTCDate()+14);
+    r = r.replaceAll('{{RETORNO}}',format(date));
     const n = nomeSeg();
     if (n) {
       r = r.replace(/\{\{DO_SEG\}\}/g, regionPhrase("do")).replace(/\{\{NO_SEG\}\}/g, regionPhrase("no"))
@@ -303,6 +309,9 @@
     if (usaSeg(tplAtual()) && !fixoDe(tplAtual()) && (!seg || contexts().some(c => temLado(c.seg) && !c.lado && !c.bilateral))) list.push(!seg ? 'região' : 'lateralidade');
     if (/\{\{APOS_MEC\}\}/.test(text)) list.push('mecanismo de trauma');
     if (/\{\{[A-Z_]+\}\}/.test(text) && !list.length) list.push('campos do modelo');
+    const fields = [...new Set([...text.matchAll(/\[([^\]\n]+)\]/g)].map(m=>m[1].toLowerCase()))];
+    list.push(...fields.slice(0,3));
+    if(fields.length>3)list.push('demais campos entre colchetes');
     return list;
   }
   async function copiar(text, button) {
@@ -357,7 +366,7 @@
   /* ---------- painel 1 ---------- */
   // Filtra pelo título completo, em qualquer posição e a cada letra digitada.
   // Ex.: "cortocontuso" encontra "FERIMENTO CORTOCONTUSO".
-  const casa = (t, q) => DocCore.matches(t.title, q);
+  const casa = (t, q) => DocCore.matches([t.title,...(Array.isArray(t.aliases)?t.aliases:[])].join(' '), q);
   function voltarAoEstadoInicial(secId = null) {
     if (sujo && !salvarJa()) return false;
     editando = false;
@@ -676,11 +685,16 @@
       a.textContent = "Falta escolher o mecanismo de trauma — ele aparece marcado no texto até ser definido.";
       docs.prepend(a);
     }
+    if (t.alternativeBlocks) {
+      const a = document.createElement('div'); a.className='aviso';
+      a.textContent='Escolha uma opção e copie apenas a receita correspondente.';
+      docs.prepend(a);
+    }
     if (reuse) {
       docs.querySelectorAll('textarea').forEach((ta,i)=>{ const value=preencherBloco(currentBlocks[i]); if(ta.value!==value){ta.value=value;auto(ta);} });
       docs.scrollTop = previousScroll;
       if (selection && document.activeElement === previousFocus) previousFocus.setSelectionRange(...selection);
-      $('btCopiar').hidden = false;
+      $('btCopiar').hidden = Boolean(t.alternativeBlocks);
       return;
     }
     currentBlocks.forEach((b, i) => {
@@ -721,9 +735,16 @@
       });
       card.append(bh, ta); docs.append(card); auto(ta);
     });
+    if(t.codingReference?.sigtap) {
+      const details=document.createElement('details'); details.className='coding-reference';
+      const summary=document.createElement('summary'); summary.textContent='Código SUS de referência';
+      const content=document.createElement('p'); content.textContent=t.codingReference.sigtap;
+      const note=document.createElement('p'); note.textContent=t.codingReference.status;
+      details.append(summary,content,note); docs.append(details);
+    }
     if (selection) { const fields=[...docs.querySelectorAll('textarea')]; const next=focusRegion ? fields.find(ta=>ta.dataset.regionKey===focusRegion) : fields[focusIndex]; if(next){next.focus({preventScroll:true});next.setSelectionRange(...selection);} }
     docs.scrollTop = previousScroll;
-    $("btCopiar").hidden = false;
+    $("btCopiar").hidden = Boolean(t.alternativeBlocks);
   }
   function auto(ta) { ta.style.height = "auto"; ta.style.height = (ta.scrollHeight + 2) + "px"; }
   function pintaTudo() { pintaCorpo(); pintaTexto(); }
@@ -731,6 +752,7 @@
   $("btCopiar").addEventListener("click", async e => {
     const b = e.currentTarget, t = tplAtual();
     if (!t) return;
+    if(t.alternativeBlocks){aviso('Copie apenas uma das opções.');return;}
     const txt = (editando ? t.blocks : blocosAtuais()).map(x => preencherBloco(x).trim()).filter(Boolean).join("\n\n");
     await copiar(txt, b);
   });
